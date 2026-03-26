@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Soil AI · Rooftop Garden Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #060a06;
+  --bg2:     #0c120c;
+  --bg3:     #111a11;
+  --border:  #1a2e1a;
+  --border2: #243824;
+  --green:   #3ddc84;
+  --green2:  #22c55e;
+  --green3:  #86efac;
+  --teal:    #2dd4bf;
+  --amber:   #f59e0b;
+  --red:     #f87171;
+  --text:    #e2ffe2;
+  --muted:   #4a7a4a;
+  --muted2:  #2d4e2d;
+  --font:    'Outfit', sans-serif;
+  --mono:    'JetBrains Mono', monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+.app{position:relative;z-index:1;}
+
+/* Sidebar */
+.sidebar{
+  position:fixed;left:0;top:0;bottom:0;width:64px;
+  background:rgba(6,10,6,0.88);backdrop-filter:blur(20px);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;
+  padding:1.5rem 0;gap:.5rem;z-index:100;
+}
+.sidebar-logo{font-size:1.4rem;margin-bottom:1rem;}
+.nav-btn{
+  width:42px;height:42px;border-radius:12px;
+  border:1px solid transparent;background:transparent;
+  color:var(--muted);font-size:1.1rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;position:relative;
+}
+.nav-btn:hover,.nav-btn.active{
+  background:var(--bg3);border-color:var(--border2);
+  color:var(--green);box-shadow:0 0 12px rgba(61,220,132,.15);
+}
+.nav-btn .tip{
+  position:absolute;left:calc(100% + 12px);
+  background:var(--bg3);border:1px solid var(--border2);
+  color:var(--text);font-size:.7rem;font-family:var(--font);
+  padding:.3rem .65rem;border-radius:6px;
+  white-space:nowrap;opacity:0;pointer-events:none;
+  transition:opacity .2s;z-index:200;
+}
+.nav-btn:hover .tip{opacity:1;}
+.sidebar-gap{flex:1;}
+
+/* Main */
+.main{margin-left:64px;padding:2rem 2rem 5rem;max-width:1080px;}
+
+/* Topbar */
+.topbar{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:2rem;padding-bottom:1.5rem;
+  border-bottom:1px solid var(--border);gap:1rem;flex-wrap:wrap;
+}
+.topbar h1{font-size:1.7rem;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.1;}
+.topbar h1 span{color:var(--green);}
+.topbar-sub{font-size:.78rem;color:var(--muted);margin-top:.25rem;}
+.status-pill{
+  display:flex;align-items:center;gap:.5rem;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:99px;padding:.45rem 1rem;
+  font-size:.7rem;font-family:var(--mono);flex-shrink:0;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.dot.waiting{background:var(--muted);animation:none!important;}
+.dot.error{background:var(--red);animation:none!important;}
+.dot.live{animation:livep 1.6s ease-in-out infinite;}
+@keyframes livep{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(61,220,132,.5)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(61,220,132,0)}}
+
+/* Sections */
+.section{display:none;}
+.section.active{display:block;animation:secIn .35s ease;}
+@keyframes secIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Cards */
+.card{
+  background:rgba(17,26,17,.72);backdrop-filter:blur(12px);
+  border:1px solid var(--border);border-radius:16px;
+  padding:1.5rem;transition:border-color .3s;
+}
+.card:hover{border-color:var(--border2);}
+.card-title{
+  font-size:.68rem;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.13em;
+  margin-bottom:1.25rem;
+}
+.gap{margin-bottom:1.25rem;}
+
+/* Grids */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
+
+/* Spot selector */
+.spot-row{display:flex;gap:.6rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.spot-btn{
+  display:flex;align-items:center;gap:.45rem;
+  padding:.5rem 1rem;border-radius:99px;
+  border:1px solid var(--border2);background:var(--bg3);
+  color:var(--muted);font-family:var(--font);
+  font-size:.78rem;font-weight:500;cursor:pointer;transition:all .2s;
+}
+.spot-btn:hover{border-color:var(--green);color:var(--green3);}
+.spot-btn.active{background:var(--green2);border-color:var(--green2);color:#021002;font-weight:700;}
+.spot-dot{width:7px;height:7px;border-radius:50%;}
+
+/* Sensor boxes */
+.sensor-box{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;padding:1.1rem;text-align:center;
+  transition:border-color .4s,box-shadow .4s;
+  position:relative;overflow:hidden;
+}
+.sensor-box::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 0%,rgba(61,220,132,.07),transparent 70%);
+  opacity:0;transition:opacity .4s;
+}
+.sensor-box.fresh{border-color:var(--green);box-shadow:0 0 18px rgba(61,220,132,.18);}
+.sensor-box.fresh::before{opacity:1;}
+.sensor-val{font-size:1.75rem;font-weight:700;color:var(--green);font-family:var(--mono);line-height:1;min-height:1.75rem;}
+.sensor-val.empty{color:var(--border2);}
+.sensor-name{font-size:.7rem;color:var(--muted);margin-top:.4rem;text-transform:uppercase;letter-spacing:.08em;}
+.sensor-unit{font-size:.62rem;color:var(--muted2);margin-top:.1rem;}
+
+/* Analyse btn */
+.analyse-btn{
+  width:100%;margin-top:1.25rem;padding:.95rem;
+  border-radius:12px;border:none;
+  background:linear-gradient(135deg,var(--green2),var(--teal));
+  color:#021002;font-family:var(--font);
+  font-size:.95rem;font-weight:700;cursor:pointer;
+  transition:opacity .2s,transform .15s,box-shadow .2s;
+  position:relative;overflow:hidden;
+}
+.analyse-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.15));}
+.analyse-btn:hover:not(:disabled){opacity:.9;box-shadow:0 4px 24px rgba(34,197,94,.35);transform:translateY(-1px);}
+.analyse-btn:disabled{opacity:.3;cursor:not-allowed;}
+
+/* Loading */
+.loading-wrap{display:none;margin-bottom:1.25rem;}
+.loading-track{background:var(--bg3);border:1px solid var(--border);border-radius:99px;height:6px;overflow:hidden;}
+.loading-fill{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--green),var(--teal));
+  transition:width .5s ease;position:relative;
+}
+.loading-fill::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:40px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.4));
+  animation:shim 1s ease-in-out infinite;
+}
+@keyframes shim{0%,100%{opacity:0}50%{opacity:1}}
+.loading-msg{font-size:.7rem;color:var(--muted);margin-top:.45rem;text-align:center;font-family:var(--mono);}
+
+/* Banners */
+.error-box{background:rgba(42,16,16,.9);border:1px solid #7f1d1d;color:var(--red);border-radius:10px;padding:.8rem 1rem;font-size:.8rem;display:none;margin-bottom:1.25rem;}
+.alert-banner{display:none;align-items:center;gap:.85rem;background:rgba(42,20,10,.9);border:1px solid rgba(248,113,113,.35);border-radius:12px;padding:.9rem 1.1rem;margin-bottom:1.25rem;animation:alertp 2s ease-in-out infinite;}
+@keyframes alertp{0%,100%{border-color:rgba(248,113,113,.35)}50%{border-color:rgba(248,113,113,.7)}}
+.alert-banner.show{display:flex;}
+.alert-text{font-size:.8rem;color:#fca5a5;line-height:1.5;}
+.offline-banner{display:none;background:rgba(30,20,5,.9);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:.65rem 1rem;font-size:.75rem;color:var(--amber);margin-bottom:1.25rem;text-align:center;}
+.offline-banner.show{display:block;}
+
+/* Stat boxes */
+.stat-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem;text-align:center;}
+.stat-num{font-size:1.4rem;font-weight:700;color:var(--green);font-family:var(--mono);}
+.stat-lbl{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:.3rem;}
+.badge{display:inline-block;font-size:.63rem;font-weight:700;padding:.18rem .55rem;border-radius:99px;margin-top:.4rem;letter-spacing:.05em;}
+.badge.LOW   {background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3);}
+.badge.MEDIUM{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
+.badge.HIGH  {background:rgba(61,220,132,.1);color:var(--green);border:1px solid rgba(61,220,132,.3);}
+
+/* Gauge */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:.5rem 0;}
+.gauge-svg{width:160px;height:100px;overflow:visible;}
+.g-track{fill:none;stroke:var(--border2);stroke-width:10;stroke-linecap:round;}
+.g-fill{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1),stroke .8s;}
+.g-val{font-family:var(--mono);font-size:1.55rem;font-weight:700;fill:var(--green);}
+.g-lbl{font-family:var(--font);font-size:.62rem;fill:var(--muted);}
+
+/* Crop bars */
+.crop-row{display:flex;align-items:center;gap:.85rem;padding:.6rem 0;}
+.crop-rank{font-family:var(--mono);font-size:.75rem;color:var(--muted);width:1.5rem;flex-shrink:0;}
+.crop-name{font-size:.88rem;font-weight:600;color:var(--text);text-transform:capitalize;flex:1.2;}
+.crop-track{flex:2;background:var(--bg2);border:1px solid var(--border);border-radius:99px;height:6px;overflow:hidden;}
+.crop-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green2),var(--teal));transition:width 1.4s cubic-bezier(.4,0,.2,1);}
+.crop-pct{font-family:var(--mono);font-size:.72rem;color:var(--green);font-weight:600;width:3rem;text-align:right;flex-shrink:0;}
+.crop-tag{font-size:.6rem;background:rgba(61,220,132,.1);color:var(--green3);border:1px solid rgba(61,220,132,.25);border-radius:5px;padding:.12rem .4rem;flex-shrink:0;}
+
+/* Plan items */
+.plan-item{display:flex;align-items:flex-start;gap:.8rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;font-size:.82rem;line-height:1.55;color:var(--green3);margin-bottom:.6rem;}
+.plan-num{color:var(--green);font-weight:700;flex-shrink:0;font-family:var(--mono);font-size:.75rem;}
+
+/* Fertility bar */
+.fbar-track{background:var(--bg2);border-radius:99px;height:9px;overflow:hidden;border:1px solid var(--border);margin-top:.85rem;}
+.fbar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green2),var(--teal));transition:width 1.4s cubic-bezier(.4,0,.2,1);}
+.fbar-meta{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin-top:.35rem;font-family:var(--mono);}
+
+/* Watering */
+.water-display{display:flex;align-items:center;gap:1.5rem;padding:.75rem 0;}
+.water-icon{font-size:2.8rem;}
+.water-info h3{font-size:1.35rem;font-weight:700;color:var(--teal);font-family:var(--mono);}
+.water-info p{font-size:.8rem;color:var(--muted);margin-top:.3rem;line-height:1.55;}
+
+/* Container health */
+.container-row{display:flex;align-items:center;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid var(--border);}
+.container-row:last-child{border-bottom:none;}
+.container-lbl{font-size:.78rem;color:var(--muted);}
+.ok  {color:var(--green);font-family:var(--mono);font-size:.82rem;font-weight:600;}
+.warn{color:var(--amber);font-family:var(--mono);font-size:.82rem;font-weight:600;}
+.crit{color:var(--red);font-family:var(--mono);font-size:.82rem;font-weight:600;}
+
+/* History */
+.htable{width:100%;border-collapse:collapse;font-size:.78rem;}
+.htable th{text-align:left;color:var(--muted);font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;padding:0 .75rem .75rem;border-bottom:1px solid var(--border);}
+.htable td{padding:.65rem .75rem;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text);}
+.htable tr:last-child td{border-bottom:none;}
+.htable tr:hover td{background:rgba(61,220,132,.03);}
+.empty-state{text-align:center;padding:2.5rem;color:var(--muted);font-size:.8rem;}
+
+/* Calendar */
+.cal-crop{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem;margin-bottom:.85rem;}
+.cal-crop-name{font-size:.92rem;font-weight:600;color:var(--text);text-transform:capitalize;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;}
+.timeline{display:flex;border-radius:8px;overflow:hidden;font-size:.65rem;}
+.tl{flex:1;padding:.55rem .4rem;text-align:center;line-height:1.4;font-weight:600;}
+.tl.sow    {background:rgba(61,220,132,.15);color:var(--green);}
+.tl.grow   {background:rgba(45,212,191,.12);color:var(--teal);}
+.tl.harvest{background:rgba(245,158,11,.15);color:var(--amber);}
+.tl .ti{font-size:.95rem;display:block;margin-bottom:.2rem;}
+.now-tag{font-size:.6rem;background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:.12rem .45rem;}
+
+/* Spot guide tiles */
+.spot-tile{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;margin-bottom:.75rem;}
+.spot-tile h4{font-size:.85rem;font-weight:700;color:var(--green);margin-bottom:.35rem;}
+.spot-tile p{font-size:.8rem;color:var(--muted);line-height:1.55;}
+
+/* Fertilizer */
+.fert-row{display:flex;align-items:center;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid var(--border);}
+.fert-row:last-child{border-bottom:none;}
+.fert-lbl{font-size:.78rem;color:var(--muted);}
+.fert-val{font-family:var(--mono);color:var(--amber);font-weight:600;font-size:.82rem;}
+.fert-val.ok{color:var(--green);}
+
+/* Weather */
+.wx-row{display:flex;align-items:center;gap:.85rem;padding:.65rem 0;border-bottom:1px solid var(--border);}
+.wx-row:last-child{border-bottom:none;}
+.wx-day{color:var(--muted);width:3.5rem;flex-shrink:0;font-family:var(--mono);font-size:.68rem;}
+.wx-icon{font-size:1.05rem;width:1.4rem;}
+.wx-desc{flex:1;font-size:.8rem;color:var(--text);}
+.wx-mm{font-family:var(--mono);color:var(--teal);font-size:.75rem;}
+
+/* Section header */
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap;}
+.sec-title{font-size:1.15rem;font-weight:800;color:#fff;letter-spacing:-.02em;}
+.sec-sub{font-size:.75rem;color:var(--muted);margin-top:.2rem;}
+.export-btn{display:inline-flex;align-items:center;gap:.45rem;background:var(--bg3);border:1px solid var(--border2);color:var(--green3);font-family:var(--font);font-size:.75rem;font-weight:600;padding:.5rem .95rem;border-radius:9px;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.export-btn:hover{border-color:var(--green);color:var(--green);}
+
+.low-conf{display:none;margin-top:.85rem;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.22);border-radius:9px;padding:.65rem .85rem;font-size:.73rem;color:var(--amber);}
+.last-upd{font-size:.67rem;color:var(--muted2);text-align:right;margin-top:-.85rem;margin-bottom:1.25rem;font-family:var(--mono);}
+
+/* Toast */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--bg3);border:1px solid var(--green);border-radius:12px;padding:.8rem 1.2rem;font-size:.8rem;color:var(--text);display:none;align-items:center;gap:.6rem;z-index:999;box-shadow:0 8px 40px rgba(0,0,0,.6);animation:tUp .3s ease;max-width:300px;}
+.toast.show{display:flex;}
+@keyframes tUp{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+@media(max-width:720px){.main{padding:1.25rem 1rem 3rem;}.g3{grid-template-columns:1fr 1fr;}.g2{grid-template-columns:1fr;}.topbar{flex-direction:column;}}
+@media(max-width:480px){.sidebar{width:52px;}.main{margin-left:52px;}}
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div class="app">
+  <nav class="sidebar">
+    <div class="sidebar-logo">🌱</div>
+    <button class="nav-btn active" onclick="showSection('dashboard')" id="nav-dashboard">🏠<span class="tip">Dashboard</span></button>
+    <button class="nav-btn" onclick="showSection('spots')" id="nav-spots">🪴<span class="tip">Garden Spots</span></button>
+    <button class="nav-btn" onclick="showSection('history')" id="nav-history">📋<span class="tip">History</span></button>
+    <button class="nav-btn" onclick="showSection('calendar')" id="nav-calendar">📅<span class="tip">Crop Calendar</span></button>
+    <button class="nav-btn" onclick="showSection('weather')" id="nav-weather">🌦<span class="tip">Weather</span></button>
+    <button class="nav-btn" onclick="showSection('fertilizer')" id="nav-fertilizer">🧪<span class="tip">Fertilizer Calc</span></button>
+    <div class="sidebar-gap"></div>
+    <button class="nav-btn" onclick="exportCSV()">⬇<span class="tip">Export CSV</span></button>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1>🌾 Smart Soil <span>AI</span></h1>
+        <div class="topbar-sub" id="topSub">Rooftop & home garden soil monitor</div>
+      </div>
+      <div class="status-pill">
+        <div class="dot waiting" id="statusDot"></div>
+        <span id="statusLbl" style="color:var(--muted)">OFFLINE</span>
+      </div>
+    </div>
+
+    <!-- Banners -->
+    <div class="offline-banner" id="offlineBanner">⚠ Server unreachable — showing last cached data</div>
+    <div class="alert-banner" id="alertBanner"><span style="font-size:1.1rem">🚨</span><div class="alert-text" id="alertText"></div></div>
+    <div class="error-box" id="errorBox"></div>
+    <div class="loading-wrap" id="loadingWrap">
+      <div class="loading-track"><div class="loading-fill" id="loadFill" style="width:0%"></div></div>
+      <div class="loading-msg" id="loadMsg">Initializing...</div>
+    </div>
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="section active" id="section-dashboard">
+      <div class="sec-hdr">
+        <div><div class="sec-title">Live Dashboard</div><div class="sec-sub">Monitoring: <span id="activeSpotLabel">Rooftop Pot A</span></div></div>
+        <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+      </div>
+
+      <!-- Garden spot selector -->
+      <div class="spot-row">
+        <button class="spot-btn active" onclick="selectSpot(this,'Rooftop Pot A')"><div class="spot-dot" style="background:var(--green)"></div>Rooftop Pot A</button>
+        <button class="spot-btn" onclick="selectSpot(this,'Balcony Box')"><div class="spot-dot" style="background:var(--teal)"></div>Balcony Box</button>
+        <button class="spot-btn" onclick="selectSpot(this,'Window Bed')"><div class="spot-dot" style="background:var(--amber)"></div>Window Bed</button>
+        <button class="spot-btn" onclick="selectSpot(this,'Ground Patch')"><div class="spot-dot" style="background:var(--green3)"></div>Ground Patch</button>
+      </div>
+
+      <!-- Sensor readings -->
+      <div class="card gap">
+        <div class="card-title">📡 Live Sensor Readings</div>
+        <div class="g3">
+          <div class="sensor-box" id="box-N"><div class="sensor-val empty" id="val-N">—</div><div class="sensor-name">Nitrogen</div><div class="sensor-unit">mg/kg</div></div>
+          <div class="sensor-box" id="box-P"><div class="sensor-val empty" id="val-P">—</div><div class="sensor-name">Phosphorus</div><div class="sensor-unit">mg/kg</div></div>
+          <div class="sensor-box" id="box-K"><div class="sensor-val empty" id="val-K">—</div><div class="sensor-name">Potassium</div><div class="sensor-unit">mg/kg</div></div>
+          <div class="sensor-box" id="box-temp"><div class="sensor-val empty" id="val-temp">—</div><div class="sensor-name">Temperature</div><div class="sensor-unit">°C</div></div>
+          <div class="sensor-box" id="box-humidity"><div class="sensor-val empty" id="val-humidity">—</div><div class="sensor-name">Humidity</div><div class="sensor-unit">%</div></div>
+          <div class="sensor-box" id="box-ph"><div class="sensor-val empty" id="val-ph">—</div><div class="sensor-name">pH Level</div><div class="sensor-unit">&nbsp;</div></div>
+        </div>
+        <button class="analyse-btn" id="analyzeBtn" disabled onclick="runAnalysis()">⚡ Analyse Soil</button>
+      </div>
+
+      <div class="last-upd" id="lastUpd"></div>
+
+      <div id="resultsSection" style="display:none">
+
+        <!-- Watering + Container health -->
+        <div class="g2 gap">
+          <div class="card">
+            <div class="card-title">💧 Watering Guide</div>
+            <div class="water-display">
+              <div class="water-icon" id="waterIcon">💧</div>
+              <div class="water-info"><h3 id="waterAmt">—</h3><p id="waterDesc">—</p></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🪴 Container & Pot Health</div>
+            <div id="containerList"></div>
+          </div>
+        </div>
+
+        <!-- Nutrients + Gauge -->
+        <div class="g2 gap">
+          <div class="card">
+            <div class="card-title">📊 Nutrient Levels</div>
+            <div class="g3">
+              <div class="stat-box"><div class="stat-num" id="nVal">—</div><div class="stat-lbl">Nitrogen</div><div class="badge" id="nBadge"></div></div>
+              <div class="stat-box"><div class="stat-num" id="pVal">—</div><div class="stat-lbl">Phosphorus</div><div class="badge" id="pBadge"></div></div>
+              <div class="stat-box"><div class="stat-num" id="kVal">—</div><div class="stat-lbl">Potassium</div><div class="badge" id="kBadge"></div></div>
+            </div>
+          </div>
+          <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div class="card-title">🌡 Soil Health Gauge</div>
+            <div class="gauge-wrap">
+              <svg class="gauge-svg" viewBox="0 0 160 100">
+                <path class="g-track" d="M 20 90 A 70 70 0 0 1 140 90"/>
+                <path class="g-fill" id="gFill" d="M 20 90 A 70 70 0 0 1 140 90" stroke="var(--green)" stroke-dasharray="220" stroke-dashoffset="220"/>
+                <text class="g-val" id="gVal" x="80" y="80" text-anchor="middle">—</text>
+                <text class="g-lbl" x="80" y="97" text-anchor="middle">HEALTH SCORE</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fertility -->
+        <div class="card gap">
+          <div class="card-title">🌱 Soil Fertility</div>
+          <div class="g3">
+            <div class="stat-box"><div class="stat-num" id="fertScore">—</div><div class="stat-lbl">Fertility Score</div></div>
+            <div class="stat-box"><div class="stat-num" style="font-size:.95rem;padding-top:.25rem" id="fertLevel">—</div><div class="stat-lbl">Level</div></div>
+            <div class="stat-box"><div class="stat-num" id="rainfallVal">—</div><div class="stat-lbl">Rainfall mm</div></div>
+          </div>
+          <div class="fbar-track"><div class="fbar-fill" id="fbarFill" style="width:0%"></div></div>
+          <div class="fbar-meta"><span>0</span><span id="fbarLbl">—</span><span>100</span></div>
+        </div>
+
+        <!-- Crops + Plan -->
+        <div class="g2 gap">
+          <div class="card">
+            <div class="card-title">🥬 Recommended Plants</div>
+            <div id="cropList"></div>
+            <div class="low-conf" id="lowConf">⚠ Low confidence — try adding compost and re-testing in a week.</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🛠 Improvement Plan</div>
+            <div id="planList"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ GARDEN SPOTS ══ -->
+    <div class="section" id="section-spots">
+      <div class="sec-hdr"><div><div class="sec-title">Garden Spot Guide</div><div class="sec-sub">Tips for each growing location at home</div></div></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">☀️ Rooftop Pots & Grow Bags</div>
+          <div class="spot-tile"><h4>Best for</h4><p>Full-sun vegetables: tomatoes, chillies, brinjal, spinach, coriander, fenugreek, mint. At least 6 hrs of direct sunlight.</p></div>
+          <div class="spot-tile"><h4>Container tips</h4><p>Use 12–20 litre pots or grow bags. Ensure drainage holes at the bottom. Coconut coir mixed with compost works well as potting mix.</p></div>
+          <div class="spot-tile"><h4>Watering</h4><p>Rooftop pots dry out faster. Water daily in summer, every 2 days in cooler months. Check soil 2 cm deep before watering.</p></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🌿 Balcony Railing Boxes</div>
+          <div class="spot-tile"><h4>Best for</h4><p>Herbs and compact greens: basil, thyme, parsley, lettuce, spring onion, radish. Great for shallow-rooted plants.</p></div>
+          <div class="spot-tile"><h4>Container tips</h4><p>Use long railing planters (60–80 cm). Line with newspaper before soil to retain moisture. Shallow roots need only 15–20 cm depth.</p></div>
+          <div class="spot-tile"><h4>Watering</h4><p>Water every 1–2 days. Watch for wind drying. Self-watering boxes with reservoirs are ideal for busy schedules.</p></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🪟 Window Sill Beds</div>
+          <div class="spot-tile"><h4>Best for</h4><p>Microgreens, sprouts, small herbs (mint, curry leaf). Low-light tolerant plants. East-facing windows are best.</p></div>
+          <div class="spot-tile"><h4>Container tips</h4><p>Small trays or repurposed containers work great. Use well-draining potting mix. Rotate pots weekly for even light exposure.</p></div>
+          <div class="spot-tile"><h4>Watering</h4><p>Mist lightly or bottom-water trays. Avoid waterlogging in small containers — once every 2–3 days is usually enough.</p></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🌍 Ground / Yard Patch</div>
+          <div class="spot-tile"><h4>Best for</h4><p>Root vegetables and larger plants: beans, gourds, cucumber, amaranth, drumstick, papaya. Plants that need deeper soil.</p></div>
+          <div class="spot-tile"><h4>Soil prep</h4><p>Mix in compost (kitchen waste compost is perfect). Loosen soil 30 cm deep. Add cow dung manure or vermicompost for best results.</p></div>
+          <div class="spot-tile"><h4>Watering</h4><p>Water every 2–3 days at the base of plants. Mulch with dry leaves to retain moisture and reduce frequency in summer.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ HISTORY ══ -->
+    <div class="section" id="section-history">
+      <div class="sec-hdr">
+        <div><div class="sec-title">Reading History</div><div class="sec-sub">All past sensor readings from your garden</div></div>
+        <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+      </div>
+      <div class="card" id="historyCard"><div class="empty-state">No readings yet — waiting for sensor data</div></div>
+    </div>
+
+    <!-- ══ CROP CALENDAR ══ -->
+    <div class="section" id="section-calendar">
+      <div class="sec-hdr"><div><div class="sec-title">Planting Calendar</div><div class="sec-sub">When to sow, grow & harvest in your home garden</div></div></div>
+      <div class="card" id="calendarCard"><div class="empty-state">Run an analysis first to see planting timelines</div></div>
+    </div>
+
+    <!-- ══ WEATHER ══ -->
+    <div class="section" id="section-weather">
+      <div class="sec-hdr"><div><div class="sec-title">Weather Forecast</div><div class="sec-sub">7-day outlook — plan your watering & care</div></div></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">🌦 7-Day Forecast</div><div id="wxList"><div class="empty-state" style="padding:1rem 0">Loading...</div></div></div>
+        <div class="card">
+          <div class="card-title">🌿 Garden Impact</div>
+          <div>
+            <div class="fert-row"><span class="fert-lbl">Today's rain</span><span class="fert-val" id="wToday">—</span></div>
+            <div class="fert-row"><span class="fert-lbl">Weekly total</span><span class="fert-val" id="wWeek">—</span></div>
+            <div class="fert-row"><span class="fert-lbl">Skip watering?</span><span id="wSkip">—</span></div>
+            <div class="fert-row"><span class="fert-lbl">Rooftop heat risk</span><span id="wHeat">—</span></div>
+            <div class="fert-row"><span class="fert-lbl">Good planting day?</span><span class="fert-val ok" id="wPlant">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FERTILIZER ══ -->
+    <div class="section" id="section-fertilizer">
+      <div class="sec-hdr"><div><div class="sec-title">Fertilizer Calculator</div><div class="sec-sub">Home-friendly quantities per pot or small bed</div></div></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">🌿 What to Add (per 12L pot)</div><div id="fertList"><div class="empty-state" style="padding:1rem 0">Run an analysis first</div></div></div>
+        <div class="card"><div class="card-title">🧪 pH Correction</div><div id="phList"><div class="empty-state" style="padding:1rem 0">Run an analysis first</div></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toastIcon">🔔</span><span id="toastMsg"></span></div>
+
+<script>
+// ════════════════════════════════════════
+// CANVAS — original green particles + grid
+// ════════════════════════════════════════
+(function(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
+
+  const particles = Array.from({length: 120}, () => ({
+    x: Math.random() * 1000,
+    y: Math.random() * 800,
+    r: Math.random() * 1.8 + 0.4,
+    speed: Math.random() * 0.25 + 0.05,
+    drift: (Math.random() - 0.5) * 0.15,
+    alpha: Math.random() * 0.4 + 0.05,
+    color: Math.random() > 0.5 ? '#3ddc84' : '#2dd4bf'
+  }));
+
+  function drawGrid() {
+    ctx.globalAlpha = 0.025;
+    ctx.strokeStyle = '#3ddc84';
+    ctx.lineWidth = 0.5;
+    const step = 60;
+    for (let x = 0; x < W; x += step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += step) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+
+  function loop() {
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+    particles.forEach(p => {
+      p.y -= p.speed; p.x += p.drift;
+      if (p.y < -10) { p.y = H + 5; p.x = Math.random() * W; }
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+const FLASK = 'http://127.0.0.1:5000';
+let lastHash = null, currentData = null, currentResult = null, activeSpot = 'Rooftop Pot A';
+let history = JSON.parse(localStorage.getItem('soilHistory') || '[]');
+let cachedResult = JSON.parse(localStorage.getItem('soilLastResult') || 'null');
+let cachedData   = JSON.parse(localStorage.getItem('soilLastData')   || 'null');
+
+if (cachedResult && cachedData) {
+  currentData = cachedData; currentResult = cachedResult;
+  showOffline(true); populateSensors(cachedData);
+  renderResults(cachedResult, cachedData);
+  document.getElementById('resultsSection').style.display = 'block';
+  document.getElementById('analyzeBtn').disabled = false;
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+  if (id === 'weather') loadWeather();
+}
+
+function selectSpot(btn, name) {
+  document.querySelectorAll('.spot-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); activeSpot = name;
+  document.getElementById('activeSpotLabel').textContent = name;
+  showToast('🪴', 'Switched to ' + name, 2000);
+}
+
+// ════════════════════════════════════════
+// POLLING
+// ════════════════════════════════════════
+async function poll() {
+  try {
+    const res = await fetch(`${FLASK}/latest`);
+    const json = await res.json();
+    showOffline(false);
+    if (json.status === 'waiting') { setStatus('waiting','WAITING','Waiting for sensor data from your device...'); return; }
+    const d = json.data, hash = JSON.stringify(d);
+    if (hash !== lastHash) {
+      lastHash = hash; currentData = d; populateSensors(d);
+      setStatus('live','LIVE',`New reading — ${activeSpot} · ${new Date().toLocaleTimeString()}`);
+      document.getElementById('analyzeBtn').disabled = false;
+      document.getElementById('lastUpd').textContent = 'Last received: ' + new Date().toLocaleTimeString();
+      checkAlerts(d); runAnalysis();
+    } else { setStatus('live','LIVE','Sensor live · waiting for next reading'); }
+  } catch(e) {
+    setStatus('error','OFFLINE','Cannot reach server.py on port 5000');
+    if (cachedResult) showOffline(true);
+  }
+}
+poll(); setInterval(poll, 3000);
+
+// ════════════════════════════════════════
+// SENSORS
+// ════════════════════════════════════════
+function populateSensors(d) {
+  const map = {N:d.N,P:d.P,K:d.K,temp:d.temp,humidity:d.humidity,ph:d.ph};
+  for (const [k,v] of Object.entries(map)) {
+    const el = document.getElementById('val-'+k), bx = document.getElementById('box-'+k);
+    el.textContent = v; el.classList.remove('empty');
+    bx.classList.add('fresh'); setTimeout(() => bx.classList.remove('fresh'), 2000);
+  }
+}
+
+// ════════════════════════════════════════
+// ALERTS — home garden context
+// ════════════════════════════════════════
+function checkAlerts(d) {
+  const a = [];
+  if (d.ph < 5)   a.push('pH critically low (' + d.ph + ') — soil too acidic for most home plants. Add lime or wood ash.');
+  if (d.ph > 8.5) a.push('pH very high (' + d.ph + ') — add organic compost or coffee grounds to lower pH.');
+  if (d.N < 10)   a.push('Nitrogen very low (' + d.N + ' mg/kg) — add liquid fertilizer or compost tea soon.');
+  if (parseFloat(d.humidity) > 85) a.push('Humidity very high (' + d.humidity + '%) — check for waterlogging, ensure pot drainage is clear.');
+  if (parseFloat(d.temp) > 40) a.push('Temperature very high (' + d.temp + '°C) — move pots to shade, water immediately.');
+  const banner = document.getElementById('alertBanner');
+  if (a.length) {
+    document.getElementById('alertText').innerHTML = a.join('<br>');
+    banner.classList.add('show'); showToast('🚨', a[0], 6000);
+    if (Notification.permission === 'granted') new Notification('Smart Soil Alert', {body: a[0]});
+  } else { banner.classList.remove('show'); }
+}
+if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+
+// ════════════════════════════════════════
+// ANALYSIS
+// ════════════════════════════════════════
+async function runAnalysis() {
+  if (!currentData) return;
+  hideError(); showLoading(true);
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+  const stages = [
+    [12,'Checking soil nutrients...'],
+    [35,'Fetching local rainfall data...'],
+    [58,'Running AI plant model...'],
+    [78,'Building watering guide...'],
+    [92,'Preparing home garden plan...'],
+  ];
+  let si = 0;
+  const t = setInterval(() => { if(si < stages.length){setBar(stages[si][0],stages[si][1]);si++;} }, 1000);
+  try {
+    await fetch(`${FLASK}/reset`);
+    const res = await fetch(`${FLASK}/sensor`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(currentData)
+    });
+    clearInterval(t);
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const result = await res.json(); currentResult = result;
+    localStorage.setItem('soilLastResult', JSON.stringify(result));
+    localStorage.setItem('soilLastData',   JSON.stringify(currentData));
+    history.unshift({time:new Date().toLocaleString(),spot:activeSpot,data:{...currentData},result:{...result}});
+    if (history.length > 60) history.pop();
+    localStorage.setItem('soilHistory', JSON.stringify(history));
+    setBar(100,'Done!');
+    setTimeout(() => {
+      showLoading(false);
+      renderResults(result, currentData);
+      document.getElementById('resultsSection').style.display = 'block';
+      document.getElementById('analyzeBtn').disabled = false;
+      renderHistory(); renderCalendar(result); renderFertCalc(currentData);
+      showToast('✅', activeSpot + ' analysis complete', 3000);
+    }, 400);
+  } catch(err) {
+    clearInterval(t); showLoading(false);
+    document.getElementById('analyzeBtn').disabled = false;
+    showError(err.message.includes('fetch') ? 'Cannot connect to server.py on port 5000' : err.message);
+  }
+}
+
+// ════════════════════════════════════════
+// RENDER RESULTS
+// ════════════════════════════════════════
+function renderResults(d, raw) {
+  [['nVal','nBadge',d.nitrogen_level,raw.N],
+   ['pVal','pBadge',d.phosphorus_level,raw.P],
+   ['kVal','kBadge',d.potassium_level,raw.K]
+  ].forEach(([vi,bi,level,v]) => {
+    document.getElementById(vi).textContent = v;
+    const b = document.getElementById(bi); b.textContent = level; b.className = 'badge ' + level;
+  });
+  const sc = d.soil_health_score, arc = 220;
+  document.getElementById('gVal').textContent = sc;
+  const f = document.getElementById('gFill');
+  f.setAttribute('stroke-dashoffset', arc - arc*(sc/100));
+  f.setAttribute('stroke', sc>=70?'var(--green)':sc>=40?'var(--amber)':'var(--red)');
+  document.getElementById('fertScore').textContent  = d.fertility_score + '/100';
+  document.getElementById('fertLevel').textContent  = d.fertility_level;
+  document.getElementById('rainfallVal').textContent = d.rainfall_used + ' mm';
+  document.getElementById('fbarFill').style.width   = d.fertility_score + '%';
+  document.getElementById('fbarLbl').textContent    = d.fertility_score + '/100';
+
+  // Spot-aware crop matching — home garden plants only
+  const spotPlants = {
+    'Rooftop Pot A':  ['tomato','chilli','brinjal','spinach','coriander','mint','maize'],
+    'Balcony Box':    ['lettuce','radish','basil','spring onion','fenugreek','mustard'],
+    'Window Bed':     ['spinach','coriander','mint','fenugreek','microgreens'],
+    'Ground Patch':   ['bean','cucumber','gourd','amaranth','ginger','turmeric','rice'],
+  };
+  const good = spotPlants[activeSpot] || [];
+  const crops = [{name:d.crop1,conf:d.confidence1},{name:d.crop2,conf:d.confidence2},{name:d.crop3,conf:d.confidence3}];
+  document.getElementById('cropList').innerHTML = crops.map((c,i) => {
+    const suited = good.some(t => c.name.toLowerCase().includes(t));
+    return `<div class="crop-row">
+      <div class="crop-rank">#${i+1}</div>
+      <div class="crop-name">${c.name}</div>
+      <div class="crop-track"><div class="crop-fill" style="width:${c.conf}%"></div></div>
+      <div class="crop-pct">${c.conf.toFixed(1)}%</div>
+      ${suited ? '<div class="crop-tag">✓ Good for '+activeSpot+'</div>' : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('lowConf').style.display = d.confidence1 < 40 ? 'block' : 'none';
+  document.getElementById('planList').innerHTML = [d.plan1,d.plan2].map((p,i) =>
+    `<div class="plan-item"><span class="plan-num">${i+1}.</span> ${p}</div>`
+  ).join('');
+  renderWatering(raw.humidity, raw.temp, d.rainfall_used);
+  renderContainerHealth(raw);
+}
+
+// ════════════════════════════════════════
+// WATERING — home garden context
+// ════════════════════════════════════════
+function renderWatering(hum, tmp, rain) {
+  const h=parseFloat(hum), t=parseFloat(tmp), r=parseFloat(rain);
+  let amt, icon, desc;
+  if (r > 25)   { amt='Skip today'; icon='🌧'; desc='Good rainfall this week — no watering needed. Empty any saucers under pots to prevent root rot.'; }
+  else if (h>75){ amt='Light mist'; icon='💧'; desc='Soil moisture is good. Only mist the top layer if it feels dry to the touch.'; }
+  else if (t>35){ amt='Water now'; icon='🚿'; desc='Very hot — water all pots immediately in the morning. Check again in the evening.'; }
+  else if (h<35){ amt='Water today'; icon='🪣'; desc='Dry conditions — water at the base of plants until it drains from the bottom. Best done early morning.'; }
+  else          { amt='Every 2 days'; icon='🌿'; desc='Conditions are balanced. Check top 2 cm of soil — water only when it feels dry.'; }
+  document.getElementById('waterIcon').textContent = icon;
+  document.getElementById('waterAmt').textContent  = amt;
+  document.getElementById('waterDesc').textContent = desc;
+}
+
+// ════════════════════════════════════════
+// CONTAINER HEALTH — pot/grow bag tips
+// ════════════════════════════════════════
+function renderContainerHealth(raw) {
+  const h=parseFloat(raw.humidity), ph=parseFloat(raw.ph), n=parseFloat(raw.N), t=parseFloat(raw.temp);
+  const drainRisk  = h > 80 ? 'CHECK DRAINAGE' : h > 65 ? 'MONITOR' : 'GOOD';
+  const heatRisk   = t > 38 ? 'MOVE TO SHADE' : t > 32 ? 'ADD MULCH' : 'OK';
+  const rootHealth = n > 40 ? 'HEALTHY' : n > 20 ? 'FAIR' : 'NEEDS FEEDING';
+  const potMix     = ph < 5.5 ? 'TOO ACIDIC' : ph > 8 ? 'TOO ALKALINE' : 'BALANCED';
+  const cls = v => ['CHECK DRAINAGE','MOVE TO SHADE','NEEDS FEEDING','TOO ACIDIC','TOO ALKALINE'].includes(v)?'crit':['MONITOR','ADD MULCH','FAIR'].includes(v)?'warn':'ok';
+  document.getElementById('containerList').innerHTML = `
+    <div class="container-row"><span class="container-lbl">Drainage risk</span><span class="${cls(drainRisk)}">${drainRisk}</span></div>
+    <div class="container-row"><span class="container-lbl">Heat stress</span><span class="${cls(heatRisk)}">${heatRisk}</span></div>
+    <div class="container-row"><span class="container-lbl">Root health</span><span class="${cls(rootHealth)}">${rootHealth}</span></div>
+    <div class="container-row"><span class="container-lbl">Potting mix pH</span><span class="${cls(potMix)}">${potMix}</span></div>
+    <div class="container-row"><span class="container-lbl">Active spot</span><span class="ok">${activeSpot}</span></div>`;
+}
+
+// ════════════════════════════════════════
+// HISTORY
+// ════════════════════════════════════════
+function renderHistory() {
+  const el = document.getElementById('historyCard');
+  if (!history.length) { el.innerHTML='<div class="empty-state">No readings yet</div>'; return; }
+  el.innerHTML = `<table class="htable">
+    <thead><tr><th>Time</th><th>Spot</th><th>N</th><th>P</th><th>K</th><th>Temp</th><th>pH</th><th>Humidity</th><th>Fertility</th><th>Top Plant</th></tr></thead>
+    <tbody>${history.map(h=>`<tr>
+      <td style="color:var(--muted);font-size:.65rem">${h.time}</td>
+      <td style="color:var(--green);font-size:.72rem">${h.spot||'—'}</td>
+      <td>${h.data.N}</td><td>${h.data.P}</td><td>${h.data.K}</td>
+      <td>${h.data.temp}°</td><td>${h.data.ph}</td><td>${h.data.humidity}%</td>
+      <td><span class="badge HIGH">${h.result.fertility_score}/100</span></td>
+      <td style="text-transform:capitalize;color:var(--green)">${h.result.crop1}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ════════════════════════════════════════
+// CROP CALENDAR — home garden plants
+// ════════════════════════════════════════
+const CROPS = {
+  rice:     {sow:'Jun–Jul',  grow:'Aug–Sep',  harvest:'Oct–Nov', sowM:[6,7]},
+  wheat:    {sow:'Nov–Dec',  grow:'Jan–Feb',  harvest:'Mar–Apr', sowM:[11,12]},
+  maize:    {sow:'Jun–Jul',  grow:'Aug–Sep',  harvest:'Sep–Oct', sowM:[6,7]},
+  tomato:   {sow:'Nov–Jan',  grow:'Feb–Mar',  harvest:'Apr–May', sowM:[11,12,1]},
+  ginger:   {sow:'Apr–May',  grow:'Jun–Oct',  harvest:'Nov–Jan', sowM:[4,5]},
+  turmeric: {sow:'Apr–May',  grow:'Jun–Oct',  harvest:'Nov–Jan', sowM:[4,5]},
+  spinach:  {sow:'Oct–Dec',  grow:'Jan–Feb',  harvest:'Feb–Mar', sowM:[10,11,12]},
+  coriander:{sow:'Oct–Nov',  grow:'Dec–Jan',  harvest:'Jan–Feb', sowM:[10,11]},
+  radish:   {sow:'Oct–Dec',  grow:'Nov–Jan',  harvest:'Dec–Feb', sowM:[10,11,12]},
+  mustard:  {sow:'Oct–Nov',  grow:'Nov–Jan',  harvest:'Feb–Mar', sowM:[10,11]},
+  beans:    {sow:'Jun–Jul',  grow:'Aug–Sep',  harvest:'Sep–Oct', sowM:[6,7]},
+  cucumber: {sow:'Feb–Mar',  grow:'Apr–May',  harvest:'May–Jun', sowM:[2,3]},
+};
+const SPOT_NOTES = {
+  'Rooftop Pot A': 'Great for full-sun pots — 12L+ grow bags work best.',
+  'Balcony Box':   'Use railing planters or shallow trays.',
+  'Window Bed':    'Choose compact, fast-growing varieties.',
+  'Ground Patch':  'Ideal — plants have more root space here.',
+};
+function renderCalendar(result) {
+  const crops=[result.crop1,result.crop2,result.crop3], month=new Date().getMonth()+1;
+  const el = document.getElementById('calendarCard');
+  el.innerHTML = '<div class="card-title">📅 Home Garden Planting Guide</div>' + crops.map(name => {
+    const info = CROPS[name.toLowerCase()] || null;
+    const note = SPOT_NOTES[activeSpot] || '';
+    if (!info) return `<div class="cal-crop"><div class="cal-crop-name">${name}</div><div style="font-size:.75rem;color:var(--muted)">${note || 'Calendar data not available.'}</div></div>`;
+    const nowSow = info.sowM.includes(month);
+    return `<div class="cal-crop">
+      <div class="cal-crop-name">${name} ${nowSow?'<span class="now-tag">← Plant now!</span>':''}</div>
+      ${note?`<div style="font-size:.72rem;color:var(--muted);margin-bottom:.65rem">🪴 ${note}</div>`:''}
+      <div class="timeline">
+        <div class="tl sow"><span class="ti">🌱</span>Sow<br>${info.sow}</div>
+        <div class="tl grow"><span class="ti">🌿</span>Grow<br>${info.grow}</div>
+        <div class="tl harvest"><span class="ti">🌾</span>Harvest<br>${info.harvest}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+// FERTILIZER — per pot / small garden
+// ════════════════════════════════════════
+function renderFertCalc(raw) {
+  const n=parseFloat(raw.N), p=parseFloat(raw.P), k=parseFloat(raw.K), ph=parseFloat(raw.ph);
+  // Scaled for a standard 12L home pot
+  const items = [
+    {name:'Urea (Nitrogen)',       needed:Math.max(0,(100-n)*0.003), ok:n>=50, unit:'g'},
+    {name:'DAP (Phosphorus)',      needed:Math.max(0,(100-p)*0.002), ok:p>=50, unit:'g'},
+    {name:'MOP (Potassium)',       needed:Math.max(0,(100-k)*0.0025),ok:k>=50, unit:'g'},
+    {name:'Kitchen compost',       needed:n<30?200:100, ok:n>=60, unit:'g (mix into top layer)'},
+    {name:'Compost tea (liquid)',  needed:n<40?'50 ml/week':'—', ok:n>=40, unit:''},
+  ];
+  document.getElementById('fertList').innerHTML = items.map(i =>
+    `<div class="fert-row"><span class="fert-lbl">${i.name}</span><span class="fert-val ${i.ok?'ok':''}">${i.ok?'✓ Sufficient':typeof i.needed==='string'?i.needed:i.needed.toFixed(1)+' '+i.unit}</span></div>`
+  ).join('');
+
+  let phRows = [];
+  if (ph < 6)     phRows = [{l:'Wood ash or lime',v:((6-ph)*5).toFixed(0)+' g per pot',ok:false},{l:'Crushed eggshells',v:'Sprinkle on soil surface',ok:false},{l:'Avoid',v:'Coffee grounds (makes it more acidic)',ok:false}];
+  else if (ph > 8) phRows = [{l:'Coffee grounds',v:'1–2 tbsp per pot',ok:false},{l:'Sulfur powder',v:((ph-8)*3).toFixed(0)+' g per pot',ok:false},{l:'Peat moss',v:'Mix into potting soil',ok:false}];
+  else             phRows = [{l:'pH Status',v:'Optimal ('+ph+')',ok:true},{l:'No correction needed',v:'Maintain with compost',ok:true},{l:'Next check',v:'In 2–4 weeks',ok:true}];
+  document.getElementById('phList').innerHTML = phRows.map(r =>
+    `<div class="fert-row"><span class="fert-lbl">${r.l}</span><span class="fert-val ${r.ok?'ok':''}">${r.v}</span></div>`
+  ).join('');
+}
+
+// ════════════════════════════════════════
+// WEATHER
+// ════════════════════════════════════════
+function loadWeather() {
+  const days = ['Today','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const wx = [{icon:'🌤',desc:'Partly cloudy',mm:0},{icon:'🌧',desc:'Light rain',mm:9},{icon:'⛈',desc:'Thunderstorm',mm:24},{icon:'☀️',desc:'Sunny',mm:0},{icon:'🌦',desc:'Showers',mm:6},{icon:'☀️',desc:'Clear',mm:0},{icon:'🌤',desc:'Partly cloudy',mm:3}];
+  let total = 0;
+  document.getElementById('wxList').innerHTML = days.map((d,i) => {
+    total += wx[i].mm;
+    return `<div class="wx-row"><div class="wx-day">${d}</div><div class="wx-icon">${wx[i].icon}</div><div class="wx-desc">${wx[i].desc}</div><div class="wx-mm">${wx[i].mm>0?wx[i].mm+' mm':'—'}</div></div>`;
+  }).join('');
+  document.getElementById('wToday').textContent  = wx[0].mm + ' mm';
+  document.getElementById('wWeek').textContent   = total + ' mm';
+  const skip = total > 20;
+  document.getElementById('wSkip').textContent   = skip ? 'Yes — rain is enough' : 'No — water your pots';
+  document.getElementById('wSkip').className     = skip ? 'ok' : 'warn';
+  const hot = wx.some(w => w.desc.includes('Sunny') || w.desc.includes('Clear'));
+  document.getElementById('wHeat').textContent   = hot ? 'HIGH — shade pots at noon' : 'LOW — pots are fine';
+  document.getElementById('wHeat').className     = hot ? 'warn' : 'ok';
+  document.getElementById('wPlant').textContent  = total > 5 && total < 40 ? '✓ Yes — good conditions' : 'Not ideal this week';
+}
+
+// ════════════════════════════════════════
+// EXPORT CSV
+// ════════════════════════════════════════
+function exportCSV() {
+  if (!history.length) { showToast('⚠','No data to export yet',3000); return; }
+  const hdr = 'Time,Spot,N,P,K,Temp,Humidity,pH,FertilityScore,FertilityLevel,TopPlant,Conf1,Plant2,Plant3,Plan1,Plan2\n';
+  const rows = history.map(h =>
+    [h.time,h.spot||'—',h.data.N,h.data.P,h.data.K,h.data.temp,h.data.humidity,h.data.ph,
+     h.result.fertility_score,h.result.fertility_level,h.result.crop1,h.result.confidence1,
+     h.result.crop2,h.result.crop3,`"${h.result.plan1}"`,`"${h.result.plan2}"`
+    ].join(',')
+  ).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([hdr+rows],{type:'text/csv'}));
+  a.download = `home-garden-soil-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  showToast('✅','CSV exported!',3000);
+}
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+function setStatus(type,lbl,sub){ document.getElementById('statusDot').className='dot '+type; document.getElementById('statusLbl').textContent=lbl; document.getElementById('topSub').textContent=sub; }
+function showOffline(on){ document.getElementById('offlineBanner').classList.toggle('show',on); }
+function showLoading(on){ document.getElementById('loadingWrap').style.display=on?'block':'none'; if(on)setBar(5,'Checking your garden soil...'); }
+function setBar(p,m){ document.getElementById('loadFill').style.width=p+'%'; document.getElementById('loadMsg').textContent=m; }
+function showError(m){ const b=document.getElementById('errorBox'); b.textContent='⚠ '+m; b.style.display='block'; }
+function hideError(){ document.getElementById('errorBox').style.display='none'; }
+function showToast(icon,msg,dur){ const t=document.getElementById('toast'); document.getElementById('toastIcon').textContent=icon; document.getElementById('toastMsg').textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur||3000); }
+
+renderHistory();
+</script>
+</body>
+</html>
