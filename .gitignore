@@ -1,0 +1,45 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE settings
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local datasets — keep locally, don't upload
+dataset/
+tomato_external_dataset/
+
+# Local test folders — keep locally, don't upload
+test_clean/
+test_folder/
+test_hard/
+
+# Temporary results
+quick_test_results.csv
+
+# Training checkpoints
+*.ckpt
+*.pt
+*.pth
+
+# Files not needed in the GitHub repository
+/00_check.py
+/01_download_data.py
+/02_prepare_data.py
+/app.py

@@ -1,0 +1,4757 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Soil AI · Rooftop Garden Monitor</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #060a06;
+      --bg2: #0c120c;
+      --bg3: #111a11;
+      --border: #1a2e1a;
+      --border2: #243824;
+      --green: #3ddc84;
+      --green2: #22c55e;
+      --green3: #86efac;
+      --teal: #2dd4bf;
+      --amber: #f59e0b;
+      --red: #f87171;
+      --text: #e2ffe2;
+      --muted: #4a7a4a;
+      --muted2: #2d4e2d;
+      --font: 'Outfit', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    #bgCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 64px;
+      background: rgba(6, 10, 6, 0.88);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 0;
+      gap: .5rem;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .nav-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+      position: relative;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: var(--bg3);
+      border-color: var(--border2);
+      color: var(--green);
+      box-shadow: 0 0 12px rgba(61, 220, 132, .15);
+    }
+
+    .nav-btn .tip {
+      position: absolute;
+      left: calc(100% + 12px);
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: .7rem;
+      font-family: var(--font);
+      padding: .3rem .65rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+      z-index: 200;
+    }
+
+    .nav-btn:hover .tip {
+      opacity: 1;
+    }
+
+    .sidebar-gap {
+      flex: 1;
+    }
+
+    /* Main */
+    .main {
+      margin-left: 64px;
+      padding: 2rem 2rem 5rem;
+      max-width: 1080px;
+    }
+
+    /* Topbar */
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .topbar h1 {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+    }
+
+    .topbar h1 span {
+      color: var(--green);
+    }
+
+    .topbar-sub {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-top: .25rem;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 99px;
+      padding: .45rem 1rem;
+      font-size: .7rem;
+      font-family: var(--mono);
+      flex-shrink: 0;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .dot.waiting {
+      background: var(--muted);
+      animation: none !important;
+    }
+
+    .dot.error {
+      background: var(--red);
+      animation: none !important;
+    }
+
+    .dot.live {
+      animation: livep 1.6s ease-in-out infinite;
+    }
+
+    @keyframes livep {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(61, 220, 132, .5)
+      }
+
+      50% {
+        opacity: .7;
+        box-shadow: 0 0 0 5px rgba(61, 220, 132, 0)
+      }
+    }
+
+    /* Sections */
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+      animation: secIn .35s ease;
+    }
+
+    @keyframes secIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(17, 26, 17, .72);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: border-color .3s;
+    }
+
+    .card:hover {
+      border-color: var(--border2);
+    }
+
+    .card-title {
+      font-size: .68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      margin-bottom: 1.25rem;
+    }
+
+    .gap {
+      margin-bottom: 1.25rem;
+    }
+
+    /* Grids */
+    .g2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .g3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    /* Spot selector */
+    .spot-row {
+      display: flex;
+      gap: .6rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .spot-btn {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .5rem 1rem;
+      border-radius: 99px;
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: .78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .spot-btn:hover {
+      border-color: var(--green);
+      color: var(--green3);
+    }
+
+    .spot-btn.active {
+      background: var(--green2);
+      border-color: var(--green2);
+      color: #021002;
+      font-weight: 700;
+    }
+
+    .spot-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    /* Sensor boxes */
+    .sensor-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem;
+      text-align: center;
+      transition: border-color .4s, box-shadow .4s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sensor-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(61, 220, 132, .07), transparent 70%);
+      opacity: 0;
+      transition: opacity .4s;
+    }
+
+    .sensor-box.fresh {
+      border-color: var(--green);
+      box-shadow: 0 0 18px rgba(61, 220, 132, .18);
+    }
+
+    .sensor-box.fresh::before {
+      opacity: 1;
+    }
+
+    .sensor-val {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--green);
+      font-family: var(--mono);
+      line-height: 1;
+      min-height: 1.75rem;
+    }
+
+    .sensor-val.empty {
+      color: var(--border2);
+    }
+
+    .sensor-name {
+      font-size: .7rem;
+      color: var(--muted);
+      margin-top: .4rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .sensor-unit {
+      font-size: .62rem;
+      color: var(--muted2);
+      margin-top: .1rem;
+    }
+
+    /* Analyse btn */
+    .analyse-btn {
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: .95rem;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--green2), var(--teal));
+      color: #021002;
+      font-family: var(--font);
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .analyse-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, .15));
+    }
+
+    .analyse-btn:hover:not(:disabled) {
+      opacity: .9;
+      box-shadow: 0 4px 24px rgba(34, 197, 94, .35);
+      transform: translateY(-1px);
+    }
+
+    .analyse-btn:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    /* Loading */
+    .loading-wrap {
+      display: none;
+      margin-bottom: 1.25rem;
+    }
+
+    .loading-track {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      height: 6px;
+      overflow: hidden;
+    }
+
+    .loading-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--green), var(--teal));
+      transition: width .5s ease;
+      position: relative;
+    }
+
+    .loading-fill::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 40px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .4));
+      animation: shim 1s ease-in-out infinite;
+    }
+
+    @keyframes shim {
+
+      0%,
+      100% {
+        opacity: 0
+      }
+
+      50% {
+        opacity: 1
+      }
+    }
+
+    .loading-msg {
+      font-size: .7rem;
+      color: var(--muted);
+      margin-top: .45rem;
+      text-align: center;
+      font-family: var(--mono);
+    }
+
+    /* Banners */
+    .error-box {
+      background: rgba(42, 16, 16, .9);
+      border: 1px solid #7f1d1d;
+      color: var(--red);
+      border-radius: 10px;
+      padding: .8rem 1rem;
+      font-size: .8rem;
+      display: none;
+      margin-bottom: 1.25rem;
+    }
+
+    .alert-banner {
+      display: none;
+      align-items: center;
+      gap: .85rem;
+      background: rgba(42, 20, 10, .9);
+      border: 1px solid rgba(248, 113, 113, .35);
+      border-radius: 12px;
+      padding: .9rem 1.1rem;
+      margin-bottom: 1.25rem;
+      animation: alertp 2s ease-in-out infinite;
+    }
+
+    @keyframes alertp {
+
+      0%,
+      100% {
+        border-color: rgba(248, 113, 113, .35)
+      }
+
+      50% {
+        border-color: rgba(248, 113, 113, .7)
+      }
+    }
+
+    .alert-banner.show {
+      display: flex;
+    }
+
+    .alert-text {
+      font-size: .8rem;
+      color: #fca5a5;
+      line-height: 1.5;
+    }
+
+    .offline-banner {
+      display: none;
+      background: rgba(30, 20, 5, .9);
+      border: 1px solid rgba(245, 158, 11, .3);
+      border-radius: 10px;
+      padding: .65rem 1rem;
+      font-size: .75rem;
+      color: var(--amber);
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+
+    .offline-banner.show {
+      display: block;
+    }
+
+    /* Stat boxes */
+    .stat-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--green);
+      font-family: var(--mono);
+    }
+
+    .stat-lbl {
+      font-size: .66rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-top: .3rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: .63rem;
+      font-weight: 700;
+      padding: .18rem .55rem;
+      border-radius: 99px;
+      margin-top: .4rem;
+      letter-spacing: .05em;
+    }
+
+    .badge.LOW {
+      background: rgba(248, 113, 113, .12);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, .3);
+    }
+
+    .badge.MEDIUM {
+      background: rgba(245, 158, 11, .12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .3);
+    }
+
+    .badge.HIGH {
+      background: rgba(61, 220, 132, .1);
+      color: var(--green);
+      border: 1px solid rgba(61, 220, 132, .3);
+    }
+
+    /* Gauge */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: .5rem 0;
+    }
+
+    .gauge-svg {
+      width: 160px;
+      height: 100px;
+      overflow: visible;
+    }
+
+    .g-track {
+      fill: none;
+      stroke: var(--border2);
+      stroke-width: 10;
+      stroke-linecap: round;
+    }
+
+    .g-fill {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1.4s cubic-bezier(.4, 0, .2, 1), stroke .8s;
+    }
+
+    .g-val {
+      font-family: var(--mono);
+      font-size: 1.55rem;
+      font-weight: 700;
+      fill: var(--green);
+    }
+
+    .g-lbl {
+      font-family: var(--font);
+      font-size: .62rem;
+      fill: var(--muted);
+    }
+
+    /* Crop bars */
+    .crop-row {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+      padding: .6rem 0;
+    }
+
+    .crop-rank {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--muted);
+      width: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .crop-name {
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--text);
+      text-transform: capitalize;
+      flex: 1.2;
+    }
+
+    .crop-track {
+      flex: 2;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      height: 6px;
+      overflow: hidden;
+    }
+
+    .crop-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--green2), var(--teal));
+      transition: width 1.4s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .crop-pct {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--green);
+      font-weight: 600;
+      width: 3rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .crop-tag {
+      font-size: .6rem;
+      background: rgba(61, 220, 132, .1);
+      color: var(--green3);
+      border: 1px solid rgba(61, 220, 132, .25);
+      border-radius: 5px;
+      padding: .12rem .4rem;
+      flex-shrink: 0;
+    }
+
+    /* Plan items */
+    .plan-item {
+      display: flex;
+      align-items: flex-start;
+      gap: .8rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .8rem 1rem;
+      font-size: .82rem;
+      line-height: 1.55;
+      color: var(--green3);
+      margin-bottom: .6rem;
+    }
+
+    .plan-num {
+      color: var(--green);
+      font-weight: 700;
+      flex-shrink: 0;
+      font-family: var(--mono);
+      font-size: .75rem;
+    }
+
+    /* Fertility bar */
+    .fbar-track {
+      background: var(--bg2);
+      border-radius: 99px;
+      height: 9px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-top: .85rem;
+    }
+
+    .fbar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--green2), var(--teal));
+      transition: width 1.4s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .fbar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: .68rem;
+      color: var(--muted);
+      margin-top: .35rem;
+      font-family: var(--mono);
+    }
+
+    /* Watering */
+    .water-display {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: .75rem 0;
+    }
+
+    .water-icon {
+      font-size: 2.8rem;
+    }
+
+    .water-info h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--teal);
+      font-family: var(--mono);
+    }
+
+    .water-info p {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: .3rem;
+      line-height: 1.55;
+    }
+
+    /* Container health */
+    .container-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .65rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .container-row:last-child {
+      border-bottom: none;
+    }
+
+    .container-lbl {
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    .ok {
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: .82rem;
+      font-weight: 600;
+    }
+
+    .warn {
+      color: var(--amber);
+      font-family: var(--mono);
+      font-size: .82rem;
+      font-weight: 600;
+    }
+
+    .crit {
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: .82rem;
+      font-weight: 600;
+    }
+
+    /* History */
+    .htable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .78rem;
+    }
+
+    .htable th {
+      text-align: left;
+      color: var(--muted);
+      font-size: .65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      padding: 0 .75rem .75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .htable td {
+      padding: .65rem .75rem;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .htable tr:last-child td {
+      border-bottom: none;
+    }
+
+    .htable tr:hover td {
+      background: rgba(61, 220, 132, .03);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    /* Calendar */
+    .cal-crop {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin-bottom: .85rem;
+    }
+
+    .cal-crop-name {
+      font-size: .92rem;
+      font-weight: 600;
+      color: var(--text);
+      text-transform: capitalize;
+      margin-bottom: .75rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .timeline {
+      display: flex;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: .65rem;
+    }
+
+    .tl {
+      flex: 1;
+      padding: .55rem .4rem;
+      text-align: center;
+      line-height: 1.4;
+      font-weight: 600;
+    }
+
+    .tl.sow {
+      background: rgba(61, 220, 132, .15);
+      color: var(--green);
+    }
+
+    .tl.grow {
+      background: rgba(45, 212, 191, .12);
+      color: var(--teal);
+    }
+
+    .tl.harvest {
+      background: rgba(245, 158, 11, .15);
+      color: var(--amber);
+    }
+
+    .tl .ti {
+      font-size: .95rem;
+      display: block;
+      margin-bottom: .2rem;
+    }
+
+    .now-tag {
+      font-size: .6rem;
+      background: rgba(245, 158, 11, .12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+      border-radius: 6px;
+      padding: .12rem .45rem;
+    }
+
+    /* Spot guide tiles */
+    .spot-tile {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: .9rem 1rem;
+      margin-bottom: .75rem;
+    }
+
+    .spot-tile h4 {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: .35rem;
+    }
+
+    .spot-tile p {
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* Fertilizer */
+    .fert-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .65rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .fert-row:last-child {
+      border-bottom: none;
+    }
+
+    .fert-lbl {
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    .fert-val {
+      font-family: var(--mono);
+      color: var(--amber);
+      font-weight: 600;
+      font-size: .82rem;
+    }
+
+    .fert-val.ok {
+      color: var(--green);
+    }
+
+    /* Weather */
+    .wx-row {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+      padding: .65rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wx-row:last-child {
+      border-bottom: none;
+    }
+
+    .wx-day {
+      color: var(--muted);
+      width: 3.5rem;
+      flex-shrink: 0;
+      font-family: var(--mono);
+      font-size: .68rem;
+    }
+
+    .wx-icon {
+      font-size: 1.05rem;
+      width: 1.4rem;
+    }
+
+    .wx-desc {
+      flex: 1;
+      font-size: .8rem;
+      color: var(--text);
+    }
+
+    .wx-mm {
+      font-family: var(--mono);
+      color: var(--teal);
+      font-size: .75rem;
+    }
+
+    /* Section header */
+    .sec-hdr {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .sec-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
+    }
+
+    .sec-sub {
+      font-size: .75rem;
+      color: var(--muted);
+      margin-top: .2rem;
+    }
+
+    .export-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--green3);
+      font-family: var(--font);
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .5rem .95rem;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+
+    .export-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .low-conf {
+      display: none;
+      margin-top: .85rem;
+      background: rgba(245, 158, 11, .07);
+      border: 1px solid rgba(245, 158, 11, .22);
+      border-radius: 9px;
+      padding: .65rem .85rem;
+      font-size: .73rem;
+      color: var(--amber);
+    }
+
+    .last-upd {
+      font-size: .67rem;
+      color: var(--muted2);
+      text-align: right;
+      margin-top: -.85rem;
+      margin-bottom: 1.25rem;
+      font-family: var(--mono);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--bg3);
+      border: 1px solid var(--green);
+      border-radius: 12px;
+      padding: .8rem 1.2rem;
+      font-size: .8rem;
+      color: var(--text);
+      display: none;
+      align-items: center;
+      gap: .6rem;
+      z-index: 999;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+      animation: tUp .3s ease;
+      max-width: 300px;
+    }
+
+    .toast.show {
+      display: flex;
+    }
+
+    @keyframes tUp {
+      from {
+        transform: translateY(16px);
+        opacity: 0
+      }
+
+      to {
+        transform: none;
+        opacity: 1
+      }
+    }
+
+    /* ── CHART STYLES ── */
+    .chart-card {
+      background: rgba(17, 26, 17, .72);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: border-color .3s;
+      margin-bottom: 1.25rem;
+    }
+
+    .chart-card:hover {
+      border-color: var(--border2);
+    }
+
+    .chart-tabs {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .chart-tab {
+      padding: .35rem .85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .chart-tab.active {
+      background: var(--bg3);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .chart-tab:hover:not(.active) {
+      color: var(--green3);
+    }
+
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 1rem;
+    }
+
+    .chart-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .68rem;
+      color: var(--muted);
+    }
+
+    .chart-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .metric-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: .75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .metric-mini {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .75rem;
+      text-align: center;
+    }
+
+    .metric-mini-val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--green);
+      font-family: var(--mono);
+    }
+
+    .metric-mini-lbl {
+      font-size: .62rem;
+      color: var(--muted);
+      margin-top: .2rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .chart-section-title {
+      font-size: .68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      margin-bottom: .75rem;
+    }
+
+    .ph-note {
+      margin-top: 1rem;
+      padding: .65rem .85rem;
+      background: rgba(61, 220, 132, .05);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 0 8px 8px 0;
+      font-size: .75rem;
+      color: var(--green3);
+      line-height: 1.55;
+    }
+
+
+    /* ── CROP MONITOR ── */
+    .crop-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .crop-card-select {
+      background: var(--bg2);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .3s cubic-bezier(.4, 0, .2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .crop-card-select::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(61, 220, 132, .12), transparent 70%);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .crop-card-select:hover {
+      border-color: var(--green);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(61, 220, 132, .2);
+    }
+
+    .crop-card-select:hover::before {
+      opacity: 1;
+    }
+
+    .crop-card-select.selected {
+      border-color: var(--green);
+      background: rgba(61, 220, 132, .08);
+      box-shadow: 0 0 0 1px var(--green), 0 8px 32px rgba(61, 220, 132, .25);
+    }
+
+    .crop-card-select.selected::before {
+      opacity: 1;
+    }
+
+    .crop-emoji-wrap {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(61, 220, 132, .08);
+      border: 1px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto .8rem;
+      font-size: 2.2rem;
+      animation: floatCrop 3s ease-in-out infinite;
+    }
+
+    .crop-card-select:nth-child(2) .crop-emoji-wrap {
+      animation-delay: .6s;
+    }
+
+    .crop-card-select:nth-child(3) .crop-emoji-wrap {
+      animation-delay: 1.2s;
+    }
+
+    @keyframes floatCrop {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-7px)
+      }
+    }
+
+    .crop-card-select.selected .crop-emoji-wrap {
+      background: rgba(61, 220, 132, .18);
+      border-color: var(--green);
+      box-shadow: 0 0 22px rgba(61, 220, 132, .4);
+      animation: floatSelected 2s ease-in-out infinite;
+    }
+
+    @keyframes floatSelected {
+
+      0%,
+      100% {
+        transform: translateY(0) scale(1)
+      }
+
+      50% {
+        transform: translateY(-9px) scale(1.06)
+      }
+    }
+
+    .crop-card-name {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: capitalize;
+      margin-bottom: .3rem;
+    }
+
+    .crop-card-conf {
+      font-size: .68rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .crop-card-select.selected .crop-card-name {
+      color: var(--green);
+    }
+
+    .selected-check {
+      position: absolute;
+      top: .6rem;
+      right: .6rem;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #021002;
+      font-size: .65rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0);
+      transition: all .25s cubic-bezier(.34, 1.56, .64, 1);
+    }
+
+    .crop-card-select.selected .selected-check {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .monitor-btn {
+      width: 100%;
+      padding: .9rem;
+      border-radius: 12px;
+      border: 1px solid var(--green);
+      background: linear-gradient(135deg, #0d2a1a, #0a1f12);
+      color: var(--green);
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      letter-spacing: .03em;
+    }
+
+    .monitor-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--green2), var(--teal));
+      color: #021002;
+      box-shadow: 0 4px 24px rgba(34, 197, 94, .3);
+    }
+
+    .monitor-btn:disabled {
+      opacity: .3;
+      cursor: not-allowed;
+    }
+
+    .health-report {
+      display: none;
+      animation: secIn .4s ease;
+    }
+
+    .health-report.visible {
+      display: block;
+    }
+
+    .health-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 1.25rem;
+    }
+
+    .health-crop-avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      background: rgba(61, 220, 132, .1);
+      border: 1px solid var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.9rem;
+      flex-shrink: 0;
+      animation: floatSelected 3s ease-in-out infinite;
+    }
+
+    .health-crop-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #fff;
+      text-transform: capitalize;
+    }
+
+    .health-score-pill {
+      margin-left: auto;
+      text-align: center;
+    }
+
+    .health-score-big {
+      font-family: var(--mono);
+      font-size: 1.7rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .health-score-lbl {
+      font-size: .6rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-top: .2rem;
+    }
+
+    .health-status-badge {
+      display: inline-block;
+      font-size: .65rem;
+      font-weight: 700;
+      padding: .2rem .65rem;
+      border-radius: 99px;
+      margin-top: .35rem;
+      letter-spacing: .06em;
+    }
+
+    .hs-EXCELLENT {
+      background: rgba(61, 220, 132, .15);
+      color: var(--green);
+      border: 1px solid rgba(61, 220, 132, .35);
+    }
+
+    .hs-GOOD {
+      background: rgba(45, 212, 191, .15);
+      color: var(--teal);
+      border: 1px solid rgba(45, 212, 191, .35);
+    }
+
+    .hs-FAIR {
+      background: rgba(245, 158, 11, .15);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .35);
+    }
+
+    .hs-POOR {
+      background: rgba(248, 113, 113, .15);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, .35);
+    }
+
+    .param-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem;
+    }
+
+    .param-item {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .85rem 1rem;
+    }
+
+    .param-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .5rem;
+    }
+
+    .param-name {
+      font-size: .7rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .param-nums {
+      font-family: var(--mono);
+      font-size: .68rem;
+      color: var(--text);
+    }
+
+    .param-bar-track {
+      background: var(--bg3);
+      border-radius: 99px;
+      height: 5px;
+      overflow: hidden;
+    }
+
+    .param-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 1.2s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .param-score-lbl {
+      font-size: .6rem;
+      color: var(--muted);
+      margin-top: .35rem;
+      font-family: var(--mono);
+    }
+
+    .fert-advice-list {
+      margin-bottom: .5rem;
+    }
+
+    .fert-advice-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border2);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin-bottom: .75rem;
+    }
+
+    .fert-advice-card.urgency-HIGH {
+      border-left-color: var(--red);
+    }
+
+    .fert-advice-card.urgency-MEDIUM {
+      border-left-color: var(--amber);
+    }
+
+    .fert-advice-card.urgency-LOW {
+      border-left-color: var(--green);
+    }
+
+    .fert-advice-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .5rem;
+    }
+
+    .fert-nutrient {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .fert-status-tag {
+      font-size: .6rem;
+      font-weight: 700;
+      padding: .15rem .5rem;
+      border-radius: 99px;
+      letter-spacing: .06em;
+    }
+
+    .fst-LOW {
+      background: rgba(248, 113, 113, .12);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, .3);
+    }
+
+    .fst-EXCESS {
+      background: rgba(245, 158, 11, .12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .3);
+    }
+
+    .fst-OK {
+      background: rgba(61, 220, 132, .1);
+      color: var(--green);
+      border: 1px solid rgba(61, 220, 132, .25);
+    }
+
+    .fert-action {
+      font-size: .78rem;
+      color: var(--green3);
+      line-height: 1.55;
+      margin-bottom: .3rem;
+    }
+
+    .fert-organic {
+      font-size: .72rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .fert-organic span {
+      color: var(--teal);
+    }
+
+    .watering-block {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: .85rem;
+    }
+
+    .watering-urgency {
+      font-size: .6rem;
+      font-weight: 700;
+      padding: .15rem .5rem;
+      border-radius: 99px;
+      margin-top: .3rem;
+      display: inline-block;
+    }
+
+    .wu-CRITICAL {
+      background: rgba(248, 113, 113, .15);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, .35);
+    }
+
+    .wu-HIGH {
+      background: rgba(245, 158, 11, .15);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .35);
+    }
+
+    .wu-MEDIUM {
+      background: rgba(45, 212, 191, .12);
+      color: var(--teal);
+      border: 1px solid rgba(45, 212, 191, .25);
+    }
+
+    .wu-LOW {
+      background: rgba(61, 220, 132, .1);
+      color: var(--green);
+      border: 1px solid rgba(61, 220, 132, .25);
+    }
+
+    .health-alert {
+      display: flex;
+      gap: .7rem;
+      background: rgba(42, 16, 16, .8);
+      border: 1px solid rgba(248, 113, 113, .3);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+      font-size: .78rem;
+      color: #fca5a5;
+      line-height: 1.5;
+      margin-bottom: .6rem;
+    }
+
+    .monitor-loading {
+      display: none;
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .monitor-loading.show {
+      display: block;
+    }
+
+    .monitor-spin {
+      font-size: 2.2rem;
+      display: block;
+      margin-bottom: .75rem;
+      animation: spin 1.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @media(max-width:720px) {
+      .crop-cards-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .param-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media(max-width:420px) {
+      .crop-cards-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 99px;
+    }
+
+    @media(max-width:720px) {
+      .main {
+        padding: 1.25rem 1rem 3rem;
+      }
+
+      .g3 {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .g2 {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-mini-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+    }
+
+    @media(max-width:480px) {
+      .sidebar {
+        width: 52px;
+      }
+
+      .main {
+        margin-left: 52px;
+      }
+    }
+
+    /* ── New feature styles ── */
+    .npk-trend-chart {
+      width: 100%;
+      height: 180px;
+      margin-top: .5rem;
+    }
+
+    .watering-notif-bar {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      background: rgba(45, 212, 191, .08);
+      border: 1px solid rgba(45, 212, 191, .25);
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      font-size: .8rem;
+      color: var(--teal)
+    }
+
+    .watering-notif-bar button {
+      margin-left: auto;
+      background: var(--teal);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: .3rem .7rem;
+      font-size: .72rem;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .rotation-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: .75rem
+    }
+
+    .rotation-card h4 {
+      font-size: .82rem;
+      color: var(--green);
+      margin-bottom: .5rem
+    }
+
+    .rotation-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+      margin: .5rem 0
+    }
+
+    .rotation-pill {
+      background: rgba(61, 220, 132, .12);
+      border: 1px solid rgba(61, 220, 132, .3);
+      color: var(--green3);
+      font-size: .72rem;
+      padding: .25rem .6rem;
+      border-radius: 99px
+    }
+
+    .rotation-pill.avoid {
+      background: rgba(248, 113, 113, .1);
+      border-color: rgba(248, 113, 113, .3);
+      color: #f87171
+    }
+
+    .pest-card {
+      border-radius: 12px;
+      padding: .9rem 1rem;
+      margin-bottom: .75rem;
+      border: 1px solid
+    }
+
+    .pest-HIGH {
+      background: rgba(248, 113, 113, .08);
+      border-color: rgba(248, 113, 113, .3)
+    }
+
+    .pest-MEDIUM {
+      background: rgba(245, 158, 11, .08);
+      border-color: rgba(245, 158, 11, .3)
+    }
+
+    .pest-LOW {
+      background: rgba(61, 220, 132, .06);
+      border-color: rgba(61, 220, 132, .2)
+    }
+
+    .pest-risk {
+      font-size: .65rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      padding: .2rem .5rem;
+      border-radius: 99px;
+      display: inline-block;
+      margin-bottom: .4rem
+    }
+
+    .pest-HIGH .pest-risk {
+      background: rgba(248, 113, 113, .2);
+      color: #f87171
+    }
+
+    .pest-MEDIUM .pest-risk {
+      background: rgba(245, 158, 11, .2);
+      color: #f59e0b
+    }
+
+    .pest-LOW .pest-risk {
+      background: rgba(61, 220, 132, .15);
+      color: var(--green)
+    }
+
+    .pest-name {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: .35rem
+    }
+
+    .pest-action {
+      font-size: .75rem;
+      color: var(--green3);
+      line-height: 1.5;
+      margin-bottom: .25rem
+    }
+
+    .pest-organic {
+      font-size: .7rem;
+      color: var(--muted);
+      line-height: 1.5
+    }
+
+    .sched-week {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: .9rem 1rem;
+      margin-bottom: .75rem
+    }
+
+    .sched-week-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .6rem
+    }
+
+    .sched-week-title {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--green)
+    }
+
+    .sched-priority {
+      font-size: .62rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      padding: .15rem .5rem;
+      border-radius: 99px
+    }
+
+    .sched-HIGH {
+      background: rgba(248, 113, 113, .15);
+      color: #f87171
+    }
+
+    .sched-MEDIUM {
+      background: rgba(245, 158, 11, .15);
+      color: #f59e0b
+    }
+
+    .sched-LOW {
+      background: rgba(61, 220, 132, .12);
+      color: var(--green)
+    }
+
+    .sched-task {
+      font-size: .77rem;
+      color: var(--green3);
+      padding: .25rem 0;
+      border-top: 1px solid var(--border);
+      line-height: 1.5
+    }
+
+    .harvest-card {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem
+    }
+
+    .harvest-days {
+      font-size: 3rem;
+      font-weight: 800;
+      font-family: var(--mono);
+      color: var(--green);
+      line-height: 1
+    }
+
+    .harvest-label {
+      font-size: .75rem;
+      color: var(--muted);
+      margin-top: .1rem
+    }
+
+    .harvest-input-row {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    .harvest-input-row input {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: .5rem .75rem;
+      border-radius: 8px;
+      font-size: .82rem;
+      flex: 1;
+      min-width: 140px
+    }
+
+    .harvest-input-row button {
+      background: var(--green);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: .5rem 1rem;
+      font-size: .8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap
+    }
+
+    .harvest-progress {
+      height: 8px;
+      background: var(--bg3);
+      border-radius: 99px;
+      overflow: hidden;
+      margin: .25rem 0
+    }
+
+    .harvest-progress-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 99px;
+      transition: width .6s ease
+    }
+
+    .wx-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .6rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .8rem
+    }
+
+    .wx-day {
+      width: 36px;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 600
+    }
+
+    .wx-icon {
+      font-size: 1.2rem;
+      width: 28px;
+      text-align: center
+    }
+
+    .wx-desc {
+      flex: 1;
+      color: var(--text)
+    }
+
+    .wx-temp {
+      font-size: .72rem;
+      color: var(--muted);
+      white-space: nowrap
+    }
+
+    .wx-mm {
+      font-size: .72rem;
+      color: var(--teal);
+      width: 42px;
+      text-align: right
+    }
+
+    .multispot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem
+    }
+
+    @media(max-width:640px) {
+      .multispot-grid {
+        grid-template-columns: 1fr
+      }
+    }
+
+    /* ── PREDICTED CROPS HERO ── */
+    .pred-hero {
+      background: linear-gradient(135deg, rgba(61, 220, 132, .1), rgba(45, 212, 191, .07));
+      border: 1px solid rgba(61, 220, 132, .3);
+      border-radius: 18px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .pred-hero-title {
+      font-size: .68rem;
+      font-weight: 600;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      margin-bottom: 1rem;
+    }
+
+    .pred-crops-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .pred-crop-card {
+      background: rgba(6, 10, 6, .6);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+    }
+
+    .pred-crop-card:hover,
+    .pred-crop-card.top {
+      border-color: var(--green);
+      box-shadow: 0 0 18px rgba(61, 220, 132, .2);
+    }
+
+    .pred-crop-card .emoji {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: .4rem;
+    }
+
+    .pred-crop-card .cname {
+      font-size: .9rem;
+      font-weight: 700;
+      color: #fff;
+      text-transform: capitalize;
+    }
+
+    .pred-crop-card .cconf {
+      font-size: .65rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-top: .2rem;
+    }
+
+    .pred-crop-card .ctag {
+      position: absolute;
+      top: .4rem;
+      right: .4rem;
+      font-size: .55rem;
+      background: var(--green);
+      color: #000;
+      border-radius: 6px;
+      padding: .1rem .4rem;
+      font-weight: 700;
+    }
+
+    /* Garden spot suggestion banner */
+    .spot-suggest {
+      display: none;
+      align-items: center;
+      gap: .85rem;
+      background: rgba(17, 26, 17, .8);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: .85rem 1.1rem;
+      font-size: .82rem;
+      margin-top: .75rem;
+    }
+
+    .spot-suggest.show {
+      display: flex;
+    }
+
+    .spot-suggest-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .spot-suggest-text {
+      flex: 1;
+      color: var(--green3);
+      line-height: 1.55;
+    }
+
+    .spot-suggest-btn {
+      background: var(--green);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: .4rem .9rem;
+      font-size: .75rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* ── EXPANDABLE SPOT TILES ── */
+    .spot-accordion {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: .6rem;
+    }
+
+    .spot-accordion-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .75rem 1rem;
+      cursor: pointer;
+      background: var(--bg2);
+      transition: background .2s;
+      user-select: none;
+    }
+
+    .spot-accordion-hdr:hover {
+      background: rgba(61, 220, 132, .06);
+    }
+
+    .spot-accordion-title {
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .spot-accordion-arrow {
+      font-size: .75rem;
+      color: var(--muted);
+      transition: transform .25s;
+    }
+
+    .spot-accordion.open .spot-accordion-arrow {
+      transform: rotate(180deg);
+    }
+
+    .spot-accordion-body {
+      display: none;
+      padding: .75rem 1rem 1rem;
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.6;
+      border-top: 1px solid var(--border);
+    }
+
+    .spot-accordion.open .spot-accordion-body {
+      display: block;
+      animation: secIn .2s ease;
+    }
+
+    /* ── HARVEST CROP LINK ── */
+    .harvest-from-monitor {
+      display: none;
+      align-items: center;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      background: rgba(61, 220, 132, .07);
+      border: 1px solid rgba(61, 220, 132, .25);
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      font-size: .82rem;
+    }
+
+    .harvest-from-monitor.show {
+      display: flex;
+    }
+
+    .hfm-label {
+      flex: 1;
+      color: var(--green3);
+    }
+
+    .hfm-btn {
+      background: var(--green);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: .4rem .9rem;
+      font-size: .75rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ── LEAF DISEASE DETECTION ── */
+    .leaf-drop {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      min-height: 250px;
+      border: 2px dashed var(--border2);
+      border-radius: 14px;
+      background: var(--bg2);
+      color: var(--muted);
+      font-size: .8rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s, color .25s;
+      padding: 1rem;
+      overflow: hidden;
+    }
+
+    .leaf-drop:hover,
+    .leaf-drop.drag {
+      border-color: var(--green);
+      color: var(--green3);
+      background: rgba(61, 220, 132, .05);
+    }
+
+    .leaf-drop.has-img {
+      border-style: solid;
+      padding: .5rem;
+    }
+
+    .leaf-drop .leaf-ico {
+      font-size: 2.6rem;
+      animation: floatCrop 3s ease-in-out infinite;
+    }
+
+    .leaf-drop small {
+      font-size: .68rem;
+      color: var(--muted2);
+    }
+
+    .leaf-preview img {
+      max-width: 100%;
+      max-height: 280px;
+      border-radius: 10px;
+      display: block;
+    }
+
+    .leaf-tips {
+      font-size: .7rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: .85rem;
+    }
+
+    .leaf-err {
+      display: none;
+      margin-top: .85rem;
+      background: rgba(42, 16, 16, .9);
+      border: 1px solid #7f1d1d;
+      color: var(--red);
+      border-radius: 10px;
+      padding: .7rem .9rem;
+      font-size: .78rem;
+    }
+
+    .leaf-verdict {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: .25rem 0 1rem;
+    }
+
+    .leaf-verdict-ico {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      border: 1px solid var(--border2);
+      background: var(--bg2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      flex-shrink: 0;
+    }
+
+    .leaf-verdict h3 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .leaf-verdict p {
+      font-size: .72rem;
+      color: var(--muted);
+      margin-top: .25rem;
+      font-family: var(--mono);
+    }
+
+    .leaf-conf {
+      margin-left: auto;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .leaf-conf b {
+      display: block;
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .leaf-conf span {
+      font-size: .58rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .leaf-sub {
+      font-size: .66rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin: 1rem 0 .5rem;
+    }
+
+    .leaf-note {
+      margin-top: .85rem;
+      background: rgba(245, 158, 11, .07);
+      border: 1px solid rgba(245, 158, 11, .22);
+      border-radius: 9px;
+      padding: .6rem .8rem;
+      font-size: .73rem;
+      color: var(--amber);
+      line-height: 1.5;
+    }
+
+    .leaf-hist {
+      display: flex;
+      gap: .6rem;
+      flex-wrap: wrap;
+    }
+
+    .leaf-hist-item {
+      width: 84px;
+      background: var(--bg2);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 0;
+      overflow: hidden;
+      cursor: pointer;
+      color: var(--text);
+      font-family: var(--font);
+      transition: transform .2s, border-color .2s;
+    }
+
+    .leaf-hist-item:hover {
+      transform: translateY(-3px);
+      border-color: var(--green);
+    }
+
+    .leaf-hist-item img {
+      width: 100%;
+      height: 70px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .leaf-hist-item div {
+      font-size: .58rem;
+      font-weight: 700;
+      padding: .25rem .2rem;
+      text-align: center;
+      line-height: 1.25;
+    }
+
+    /* 13 sidebar buttons: tighten on short screens so nothing is cut off */
+    @media (max-height: 880px) {
+      .sidebar {
+        gap: .25rem;
+        padding: 1rem 0;
+      }
+
+      .nav-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+      }
+
+      .sidebar-logo {
+        margin-bottom: .4rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <canvas id="bgCanvas"></canvas>
+
+  <div class="app">
+    <nav class="sidebar">
+      <div class="sidebar-logo">🌱</div>
+      <!-- Selected crop indicator -->
+      <div id="sidebarCropIndicator"
+        style="display:none;flex-direction:column;align-items:center;gap:.2rem;padding:.4rem .3rem;background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.25);border-radius:10px;width:46px;margin-bottom:.3rem">
+        <div id="sidebarCropEmoji" style="font-size:1.1rem;animation:floatCrop 3s ease-in-out infinite">🌱</div>
+        <div id="sidebarCropName"
+          style="font-size:.38rem;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-align:center;line-height:1.2;max-width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+        </div>
+        <div id="sidebarCropScore" style="font-family:var(--mono);font-size:.5rem;color:var(--green3)"></div>
+      </div>
+      <button class="nav-btn active" onclick="showSection('dashboard')" id="nav-dashboard">🏠<span
+          class="tip">Dashboard</span></button>
+      <button class="nav-btn" onclick="showSection('monitor')" id="nav-monitor">🌿<span class="tip">Crop
+          Monitor</span></button>
+      <button class="nav-btn" onclick="showSection('charts')" id="nav-charts">📈<span class="tip">Charts</span></button>
+      <button class="nav-btn" onclick="showSection('spots')" id="nav-spots">🪴<span class="tip">Garden
+          Spots</span></button>
+      <button class="nav-btn" onclick="showSection('history')" id="nav-history">📋<span
+          class="tip">History</span></button>
+      <button class="nav-btn" onclick="showSection('calendar')" id="nav-calendar">📅<span class="tip">Crop
+          Calendar</span></button>
+      <button class="nav-btn" onclick="showSection('weather')" id="nav-weather">🌦<span
+          class="tip">Weather</span></button>
+      <button class="nav-btn" onclick="showSection('fertilizer')" id="nav-fertilizer">🧪<span class="tip">Fertilizer
+          Calc</span></button>
+      <button class="nav-btn" onclick="showSection('rotation')" id="nav-rotation">🔄<span class="tip">Crop
+          Rotation</span></button>
+      <button class="nav-btn" onclick="showSection('pest')" id="nav-pest">🐛<span class="tip">Pest
+          Alerts</span></button>
+      <button class="nav-btn" onclick="showSection('leaf')" id="nav-leaf">🍃<span class="tip">Leaf
+          Disease</span></button>
+      <button class="nav-btn" onclick="showSection('harvest')" id="nav-harvest">🌾<span class="tip">Harvest
+          Countdown</span></button>
+      <div class="sidebar-gap"></div>
+      <button class="nav-btn" onclick="exportCSV()">⬇<span class="tip">Export CSV</span></button>
+    </nav>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1>🌾 Smart Soil <span>AI</span></h1>
+          <div class="topbar-sub" id="topSub">Rooftop & home garden soil monitor</div>
+        </div>
+        <div class="status-pill">
+          <div class="dot waiting" id="statusDot"></div>
+          <span id="statusLbl" style="color:var(--muted)">OFFLINE</span>
+        </div>
+      </div>
+
+      <div class="offline-banner" id="offlineBanner">⚠ Server unreachable — showing last cached data</div>
+      <div class="alert-banner" id="alertBanner"><span style="font-size:1.1rem">🚨</span>
+        <div class="alert-text" id="alertText"></div>
+      </div>
+      <div class="error-box" id="errorBox"></div>
+      <div class="loading-wrap" id="loadingWrap">
+        <div class="loading-track">
+          <div class="loading-fill" id="loadFill" style="width:0%"></div>
+        </div>
+        <div class="loading-msg" id="loadMsg">Initializing...</div>
+      </div>
+
+      <!-- ══════════════════════════════ DASHBOARD ══════════════════════════════ -->
+      <div class="section active" id="section-dashboard">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Live Dashboard</div>
+            <div class="sec-sub">Monitoring: <span id="activeSpotLabel">Rooftop Pot A</span></div>
+          </div>
+          <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+
+        <div class="spot-row">
+          <button class="spot-btn active" onclick="selectSpot(this,'Rooftop Pot A')">
+            <div class="spot-dot" style="background:var(--green)"></div>Rooftop Pot A
+          </button>
+          <button class="spot-btn" onclick="selectSpot(this,'Balcony Box')">
+            <div class="spot-dot" style="background:var(--teal)"></div>Balcony Box
+          </button>
+          <button class="spot-btn" onclick="selectSpot(this,'Window Bed')">
+            <div class="spot-dot" style="background:var(--amber)"></div>Window Bed
+          </button>
+          <button class="spot-btn" onclick="selectSpot(this,'Ground Patch')">
+            <div class="spot-dot" style="background:var(--green3)"></div>Ground Patch
+          </button>
+        </div>
+
+        <div class="card gap">
+          <div class="card-title">📡 Live Sensor Readings</div>
+          <div class="g3">
+            <div class="sensor-box" id="box-N">
+              <div class="sensor-val empty" id="val-N">—</div>
+              <div class="sensor-name">Nitrogen</div>
+              <div class="sensor-unit">mg/kg</div>
+            </div>
+            <div class="sensor-box" id="box-P">
+              <div class="sensor-val empty" id="val-P">—</div>
+              <div class="sensor-name">Phosphorus</div>
+              <div class="sensor-unit">mg/kg</div>
+            </div>
+            <div class="sensor-box" id="box-K">
+              <div class="sensor-val empty" id="val-K">—</div>
+              <div class="sensor-name">Potassium</div>
+              <div class="sensor-unit">mg/kg</div>
+            </div>
+            <div class="sensor-box" id="box-temp">
+              <div class="sensor-val empty" id="val-temp">—</div>
+              <div class="sensor-name">Temperature</div>
+              <div class="sensor-unit">°C</div>
+            </div>
+            <div class="sensor-box" id="box-moisture">
+              <div class="sensor-val empty" id="val-moisture">—</div>
+              <div class="sensor-name">Moisture</div>
+              <div class="sensor-unit">%</div>
+            </div>
+            <div class="sensor-box" id="box-ph">
+              <div class="sensor-val empty" id="val-ph">—</div>
+              <div class="sensor-name">pH Level</div>
+              <div class="sensor-unit">&nbsp;</div>
+            </div>
+          </div>
+          <button class="analyse-btn" id="analyzeBtn" disabled onclick="runAnalysis()">⚡ Analyse Soil</button>
+        </div>
+
+        <div class="last-upd" id="lastUpd"></div>
+
+        <!-- ★ PREDICTED CROPS HERO — appears right after analysis -->
+        <div class="pred-hero" id="predHero" style="display:none">
+          <div class="pred-hero-title">🌱 AI Crop Predictions — Best Matches for Your Soil</div>
+          <div class="pred-crops-row" id="predCropsRow"></div>
+          <div class="spot-suggest" id="spotSuggest">
+            <div class="spot-suggest-icon" id="spotSuggestIcon">🪴</div>
+            <div class="spot-suggest-text" id="spotSuggestText">Loading suggestion...</div>
+            <button class="spot-suggest-btn" onclick="showSection('spots')">View Garden Spots →</button>
+          </div>
+        </div>
+
+        <!-- Watering Reminder Notification Bar -->
+        <div id="wateringNotifBar" class="watering-notif-bar" style="display:none">
+          💧 <span id="wateringNotifMsg">Soil moisture is low — time to water your plants!</span>
+          <button onclick="dismissWateringNotif()">Dismiss</button>
+        </div>
+
+        <div id="resultsSection" style="display:none">
+          <div class="g2 gap">
+            <div class="card">
+              <div class="card-title">💧 Watering Guide</div>
+              <div class="water-display">
+                <div class="water-icon" id="waterIcon">💧</div>
+                <div class="water-info">
+                  <h3 id="waterAmt">—</h3>
+                  <p id="waterDesc">—</p>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">🪴 Container & Pot Health</div>
+              <div id="containerList"></div>
+            </div>
+          </div>
+
+          <!-- CTA to Crop Monitor -->
+          <div id="monitorCTA" style="display:none;margin-bottom:1.25rem">
+            <button onclick="showSection('monitor')"
+              style="width:100%;padding:1rem;border-radius:14px;border:1px solid var(--green);background:linear-gradient(135deg,rgba(61,220,132,.08),rgba(45,212,191,.06));color:var(--green);font-family:var(--font);font-size:.95rem;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.75rem"
+              onmouseover="this.style.background='linear-gradient(135deg,var(--green2),var(--teal))';this.style.color='#021002'"
+              onmouseout="this.style.background='linear-gradient(135deg,rgba(61,220,132,.08),rgba(45,212,191,.06))';this.style.color='var(--green)'">
+              <span id="ctaCropEmoji" style="font-size:1.3rem">🌱</span>
+              <span id="ctaLabel">Select a crop to monitor its health →</span>
+            </button>
+          </div>
+
+
+          <!-- Active Crop Monitor Summary -->
+          <div class="card gap" id="activeCropSummary" style="display:none">
+            <div class="card-title">🌿 Active Crop Monitor</div>
+            <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+              <div id="summaryAvatar" style="font-size:2.5rem;animation:floatCrop 3s ease-in-out infinite">🌱</div>
+              <div style="flex:1">
+                <div id="summaryCropName" style="font-size:1.1rem;font-weight:800;color:#fff;text-transform:capitalize">
+                  —</div>
+                <div class="health-status-badge" id="summaryStatusBadge" style="margin-top:.3rem">—</div>
+              </div>
+              <div style="text-align:center">
+                <div id="summaryScore"
+                  style="font-family:var(--mono);font-size:1.8rem;font-weight:700;color:var(--green)">—</div>
+                <div style="font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Health
+                  Score</div>
+              </div>
+              <button onclick="showSection('monitor')"
+                style="padding:.5rem 1rem;border-radius:9px;border:1px solid var(--green);background:transparent;color:var(--green);font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer">View
+                Full Report →</button>
+            </div>
+            <div id="summaryAlerts" style="margin-top:.5rem"></div>
+          </div>
+
+
+          <div class="g2 gap">
+            <div class="card">
+              <div class="card-title">📊 Nutrient Levels</div>
+              <div class="g3">
+                <div class="stat-box">
+                  <div class="stat-num" id="nVal">—</div>
+                  <div class="stat-lbl">Nitrogen</div>
+                  <div class="badge" id="nBadge"></div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="pVal">—</div>
+                  <div class="stat-lbl">Phosphorus</div>
+                  <div class="badge" id="pBadge"></div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="kVal">—</div>
+                  <div class="stat-lbl">Potassium</div>
+                  <div class="badge" id="kBadge"></div>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div class="card-title">🌡 Soil Health Gauge</div>
+              <div class="gauge-wrap">
+                <svg class="gauge-svg" viewBox="0 0 160 100">
+                  <path class="g-track" d="M 20 90 A 70 70 0 0 1 140 90" />
+                  <path class="g-fill" id="gFill" d="M 20 90 A 70 70 0 0 1 140 90" stroke="var(--green)"
+                    stroke-dasharray="220" stroke-dashoffset="220" />
+                  <text class="g-val" id="gVal" x="80" y="80" text-anchor="middle">—</text>
+                  <text class="g-lbl" x="80" y="97" text-anchor="middle">HEALTH SCORE</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="card gap">
+            <div class="card-title">🌱 Soil Fertility</div>
+            <div class="g3">
+              <div class="stat-box">
+                <div class="stat-num" id="fertScore">—</div>
+                <div class="stat-lbl">Fertility Score</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-num" style="font-size:.95rem;padding-top:.25rem" id="fertLevel">—</div>
+                <div class="stat-lbl">Level</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-num" id="rainfallVal">—</div>
+                <div class="stat-lbl">Rainfall mm</div>
+              </div>
+            </div>
+            <div class="fbar-track">
+              <div class="fbar-fill" id="fbarFill" style="width:0%"></div>
+            </div>
+            <div class="fbar-meta"><span>0</span><span id="fbarLbl">—</span><span>100</span></div>
+          </div>
+
+          <div class="gap">
+            <div class="card">
+              <div class="card-title">🛠 Improvement Plan</div>
+              <div id="planList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ CHARTS ══════════════════════════════ -->
+      <div class="section" id="section-charts">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Soil & Plant Charts</div>
+            <div class="sec-sub">Trends across all readings</div>
+          </div>
+        </div>
+
+        <!-- FERTILITY CHART -->
+        <div class="chart-card">
+          <div class="card-title">🌿 Soil Fertility — Nutrient Trends</div>
+
+          <div class="metric-mini-grid" id="fertilityMetrics">
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgN">—</div>
+              <div class="metric-mini-lbl">Avg N mg/kg</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgP">—</div>
+              <div class="metric-mini-lbl">Avg P mg/kg</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgK">—</div>
+              <div class="metric-mini-lbl">Avg K mg/kg</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgFS">—</div>
+              <div class="metric-mini-lbl">Avg Fertility</div>
+            </div>
+          </div>
+
+          <div
+            style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem;">
+            <div class="chart-legend">
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot" style="background:#3ddc84"></div>Nitrogen
+              </div>
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot" style="background:#2dd4bf"></div>Phosphorus
+              </div>
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot" style="background:#60a5fa"></div>Potassium
+              </div>
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot" style="background:#f59e0b"></div>Fertility score
+              </div>
+            </div>
+            <div class="chart-tabs">
+              <button class="chart-tab active" id="fertTab-bar" onclick="switchFertChart('bar')">Bar</button>
+              <button class="chart-tab" id="fertTab-line" onclick="switchFertChart('line')">Line</button>
+            </div>
+          </div>
+
+          <div style="position:relative;width:100%;height:280px;">
+            <canvas id="fertilityChart" role="img"
+              aria-label="Nutrient trends chart showing N P K and fertility score">Soil nutrient readings over
+              time.</canvas>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <div class="chart-section-title">Latest reading — snapshot</div>
+            <div style="position:relative;width:100%;height:160px;">
+              <canvas id="fertSnapshot" role="img" aria-label="Horizontal bar chart of latest nutrient reading">Latest
+                soil nutrients at a glance.</canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- PLANT HEALTH CHART -->
+        <div class="chart-card">
+          <div class="card-title">🌡 Plant Health Monitor</div>
+
+          <div class="metric-mini-grid">
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgTemp">—</div>
+              <div class="metric-mini-lbl">Avg Temp °C</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgHum">—</div>
+              <div class="metric-mini-lbl">Avg Moisture %</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgPh">—</div>
+              <div class="metric-mini-lbl">Avg pH</div>
+            </div>
+            <div class="metric-mini">
+              <div class="metric-mini-val" id="avgHealth">—</div>
+              <div class="metric-mini-lbl">Avg Health</div>
+            </div>
+          </div>
+
+          <div class="chart-legend" style="margin-bottom:1rem;">
+            <div class="chart-legend-item">
+              <div class="chart-legend-dot" style="background:#f87171"></div>Temperature (°C)
+            </div>
+            <div class="chart-legend-item">
+              <div class="chart-legend-dot" style="background:#60a5fa"></div>Moisture (%)
+            </div>
+            <div class="chart-legend-item">
+              <div class="chart-legend-dot" style="background:#a78bfa"></div>Health score
+            </div>
+          </div>
+
+          <div style="position:relative;width:100%;height:280px;">
+            <canvas id="healthChart" role="img"
+              aria-label="Line chart showing temperature moisture and health score trends">Plant health parameters over
+              time.</canvas>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <div class="chart-section-title">pH trend — optimal band 6.0–7.0</div>
+            <div style="position:relative;width:100%;height:160px;">
+              <canvas id="phChart" role="img" aria-label="pH level trend line chart with optimal range band">pH readings
+                with optimal range marked.</canvas>
+            </div>
+            <div class="ph-note" id="phNote">Run an analysis to see real pH data from your sensor.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ GARDEN SPOTS ══════════════════════════════ -->
+      <div class="section" id="section-spots">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Garden Spot Guide</div>
+            <div class="sec-sub">Tips for each growing location at home</div>
+          </div>
+        </div>
+
+        <!-- Crop-based spot recommendation banner -->
+        <div id="spotCropBanner"
+          style="display:none;margin-bottom:1.25rem;padding:1rem 1.25rem;background:linear-gradient(135deg,rgba(61,220,132,.1),rgba(45,212,191,.07));border:1px solid rgba(61,220,132,.3);border-radius:14px">
+          <div
+            style="font-size:.68rem;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">
+            🌱 Best Spot for Your Monitored Crop</div>
+          <div id="spotCropBannerText" style="font-size:.88rem;color:var(--text);line-height:1.6"></div>
+        </div>
+
+        <div class="g2">
+          <!-- Rooftop -->
+          <div class="card">
+            <div class="card-title">☀️ Rooftop Pots & Grow Bags</div>
+            <div class="spot-accordion open">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Best for</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Full-sun vegetables: tomatoes, chillies, brinjal, spinach, coriander,
+                fenugreek, mint. At least 6 hrs of direct sunlight.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Container tips</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Use 12–20 litre pots or grow bags. Ensure drainage holes at the bottom.
+                Coconut coir mixed with compost works well as potting mix.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Watering</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Rooftop pots dry out faster. Water daily in summer, every 2 days in
+                cooler months. Check soil 2 cm deep before watering.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Sunlight & heat management</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Use light-coloured pots to reduce heat absorption. Add a thin layer of
+                mulch (dry leaves or coconut husk) on top to retain moisture. During peak summer, consider shade nets
+                (30–50% shade cloth) from 12–4 PM.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Soil mix recipe</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">50% red soil + 30% vermicompost + 20% cocopeat. Add a handful of neem
+                cake per pot to deter pests. Refresh top 2 inches every 3 months.</div>
+            </div>
+          </div>
+
+          <!-- Balcony -->
+          <div class="card">
+            <div class="card-title">🌿 Balcony Railing Boxes</div>
+            <div class="spot-accordion open">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Best for</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Herbs and compact greens: basil, thyme, parsley, lettuce, spring onion,
+                radish. Great for shallow-rooted plants.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Container tips</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Use long railing planters (60–80 cm). Line with newspaper before soil to
+                retain moisture. Shallow roots need only 15–20 cm depth.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Watering</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Water every 1–2 days. Watch for wind drying. Self-watering boxes with
+                reservoirs are ideal for busy schedules.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Wind protection</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">High balconies face strong wind stress. Group pots together to create a
+                windbreak effect. Avoid tall, weak-stemmed plants. Use bamboo stakes for support.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Companion planting ideas</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Plant basil alongside tomatoes — it repels aphids. Grow marigolds at the
+                edges to deter whiteflies. Mint works well in hanging pots but keep separate as it spreads aggressively.
+              </div>
+            </div>
+          </div>
+
+          <!-- Window Sill -->
+          <div class="card">
+            <div class="card-title">🪟 Window Sill Beds</div>
+            <div class="spot-accordion open">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Best for</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Microgreens, sprouts, small herbs (mint, curry leaf). Low-light tolerant
+                plants. East-facing windows are best.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Container tips</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Small trays or repurposed containers work great. Use well-draining
+                potting mix. Rotate pots weekly for even light exposure.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Watering</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Mist lightly or bottom-water trays. Avoid waterlogging in small
+                containers — once every 2–3 days is usually enough.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Light supplementation</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">If natural light is less than 4 hours, use a basic grow light (LED, 2700K
+                warm white) for 6 hours. Even a desk lamp placed 20 cm above seedlings helps germination significantly.
+              </div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Best crops to start here</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Start seeds of coriander, fenugreek, and radish in window trays — they
+                germinate in 3–5 days with minimal care. Once sprouted (10 cm), transfer to balcony or rooftop pots for
+                full growth.</div>
+            </div>
+          </div>
+
+          <!-- Ground Patch -->
+          <div class="card">
+            <div class="card-title">🌍 Ground / Yard Patch</div>
+            <div class="spot-accordion open">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Best for</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Root vegetables and larger plants: beans, gourds, cucumber, amaranth,
+                drumstick, papaya. Plants that need deeper soil.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Soil prep</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Mix in compost (kitchen waste compost is perfect). Loosen soil 30 cm
+                deep. Add cow dung manure or vermicompost for best results.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Watering</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Water every 2–3 days at the base of plants. Mulch with dry leaves to
+                retain moisture and reduce frequency in summer.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Raised bed setup</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">For small yards, build raised beds (30–45 cm high) with bricks or wooden
+                planks. Fill with a mix of topsoil, compost, and sand. Raised beds warm faster, drain better, and are
+                easier to manage.</div>
+            </div>
+            <div class="spot-accordion">
+              <div class="spot-accordion-hdr" onclick="toggleAccordion(this)">
+                <span class="spot-accordion-title">Pest management</span>
+                <span class="spot-accordion-arrow">▼</span>
+              </div>
+              <div class="spot-accordion-body">Spray diluted neem oil (5 ml per litre) every 10 days as a preventive.
+                Place yellow sticky traps for whiteflies. Keep the area weed-free and clear fallen leaves to reduce
+                fungal risks during monsoon.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ HISTORY ══════════════════════════════ -->
+      <div class="section" id="section-history">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Reading History</div>
+            <div class="sec-sub">All past sensor readings from your garden</div>
+          </div>
+          <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+        <div class="card" id="historyCard">
+          <div class="empty-state">No readings yet — waiting for sensor data</div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ CALENDAR ══════════════════════════════ -->
+      <div class="section" id="section-calendar">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Planting Calendar</div>
+            <div class="sec-sub">When to sow, grow & harvest in your home garden</div>
+          </div>
+        </div>
+        <div class="card" id="calendarCard">
+          <div class="empty-state">Run an analysis first to see planting timelines</div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ WEATHER ══════════════════════════════ -->
+      <div class="section" id="section-weather">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Weather Forecast</div>
+            <div class="sec-sub">7-day outlook — plan your watering & care</div>
+          </div>
+          <button class="export-btn" onclick="loadWeather()">🔄 Refresh</button>
+        </div>
+
+        <!-- Current weather card -->
+        <div class="card gap" id="wxCurrentCard" style="display:none;margin-bottom:1.25rem">
+          <div class="card-title">🌡 Current Conditions</div>
+          <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+            <div style="font-size:3.5rem" id="wxCurIcon">—</div>
+            <div>
+              <div style="font-family:var(--mono);font-size:2.2rem;font-weight:700;color:var(--green);line-height:1"
+                id="wxCurTemp">—</div>
+              <div style="font-size:.82rem;color:var(--text);margin-top:.2rem" id="wxCurDesc">—</div>
+              <div style="font-size:.72rem;color:var(--muted);margin-top:.25rem" id="wxCurLocation">—</div>
+            </div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-left:auto">
+              <div style="text-align:center">
+                <div style="font-family:var(--mono);font-size:1rem;color:var(--teal)" id="wxCurHum">—</div>
+                <div style="font-size:.6rem;color:var(--muted)">HUMIDITY</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-family:var(--mono);font-size:1rem;color:var(--amber)" id="wxCurWind">—</div>
+                <div style="font-size:.6rem;color:var(--muted)">WIND</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-family:var(--mono);font-size:1rem;color:var(--green3)" id="wxCurFeels">—</div>
+                <div style="font-size:.6rem;color:var(--muted)">FEELS LIKE</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="g2">
+          <div class="card">
+            <div class="card-title">🌦 5-Day Forecast</div>
+            <div id="wxList">
+              <div class="empty-state" style="padding:1rem 0">Loading weather...</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🌿 Garden Impact</div>
+            <div>
+              <div class="fert-row"><span class="fert-lbl">Today's rain</span><span class="fert-val"
+                  id="wToday">—</span></div>
+              <div class="fert-row"><span class="fert-lbl">Weekly total</span><span class="fert-val" id="wWeek">—</span>
+              </div>
+              <div class="fert-row"><span class="fert-lbl">Skip watering?</span><span id="wSkip">—</span></div>
+              <div class="fert-row"><span class="fert-lbl">Rooftop heat risk</span><span id="wHeat">—</span></div>
+              <div class="fert-row"><span class="fert-lbl">Good planting day?</span><span class="fert-val ok"
+                  id="wPlant">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ FERTILIZER ══════════════════════════════ -->
+      <div class="section" id="section-fertilizer">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">Fertilizer Calculator</div>
+            <div class="sec-sub" id="fertSub">Select a crop in Crop Monitor for tailored advice</div>
+          </div>
+        </div>
+        <div id="fertNoSelect" class="card" style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem">
+          🌱 No crop selected yet — go to <strong style="color:var(--green)">Crop Monitor</strong> and select a crop
+          first.
+        </div>
+        <div id="fertWithCrop" style="display:none">
+          <div
+            style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding:.75rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+            <span id="fertCropEmoji" style="font-size:1.5rem">🌱</span>
+            <span id="fertCropLabel"
+              style="font-size:.9rem;font-weight:700;color:var(--green);text-transform:capitalize">—</span>
+            <span style="font-size:.7rem;color:var(--muted)">— crop-specific advice</span>
+          </div>
+          <div class="g2">
+            <div class="card">
+              <div class="card-title">🌿 What to Add (per 12L pot)</div>
+              <div id="fertList">
+                <div class="empty-state" style="padding:1rem 0">Run an analysis first</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">🧪 pH Correction</div>
+              <div id="phList">
+                <div class="empty-state" style="padding:1rem 0">Run an analysis first</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ CROP ROTATION ══════════════════════════════ -->
+      <div class="section" id="section-rotation">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">🔄 Crop Rotation</div>
+            <div class="sec-sub">What to plant next to restore soil balance</div>
+          </div>
+          <button class="export-btn" onclick="loadRotation()">🔄 Refresh</button>
+        </div>
+        <div id="rotationContent">
+          <div class="card">
+            <div class="empty-state">Run an analysis and monitor a crop first</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ PEST ALERTS ══════════════════════════════ -->
+      <div class="section" id="section-pest">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">🐛 Pest & Disease Alerts</div>
+            <div class="sec-sub">Risk assessment based on current temp & moisture</div>
+          </div>
+          <button class="export-btn" onclick="loadPestAlerts()">🔄 Refresh</button>
+        </div>
+        <div id="pestContent">
+          <div class="card">
+            <div class="empty-state">Waiting for sensor data...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ LEAF DISEASE ══════════════════════════════ -->
+      <div class="section" id="section-leaf">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">🍃 Leaf Disease Detection</div>
+            <div class="sec-sub">Upload or take a photo of a tomato leaf — the AI names the disease and suggests
+              treatment</div>
+          </div>
+          <button class="export-btn" onclick="leafReset()">✕ Clear</button>
+        </div>
+
+        <div class="g2 gap">
+          <div class="card">
+            <div class="card-title">📸 Leaf Photo</div>
+            <label class="leaf-drop" id="leafDrop">
+              <input type="file" id="leafFile" accept="image/*" hidden onchange="leafPick(this.files[0])">
+              <div class="leaf-preview" id="leafPreview">
+                <div class="leaf-ico">🍃</div>
+                <div>Click to upload, drop a photo here,<br>or take one with your phone camera</div>
+                <small>JPG / PNG</small>
+              </div>
+            </label>
+            <button class="analyse-btn" id="leafBtn" disabled onclick="leafDiagnose()">🔍 Diagnose Leaf</button>
+            <div class="leaf-err" id="leafErr"></div>
+            <div class="leaf-tips">
+              Tips: one leaf per photo · daylight · plain background · keep the symptoms in focus.<br>
+              The model recognises <b>tomato</b> leaf diseases: bacterial spot, early/late blight, leaf mold, septoria,
+              spider mites, target spot, yellow leaf curl virus, mosaic virus, healthy.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">🧬 Diagnosis</div>
+            <div id="leafResult">
+              <div class="empty-state">Choose a leaf photo and press Diagnose</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card gap">
+          <div
+            style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+            <div class="card-title" style="margin:0">🧪 Soil-Based Disease Risk (from your live sensor readings)</div>
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span id="leafSoilOverall"></span>
+              <button class="export-btn" onclick="leafLoadSoil()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="leafSoilList">
+            <div class="empty-state">Loading…</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <div class="card-title" style="margin:0">🕘 Recent Scans</div>
+            <button class="export-btn" onclick="leafClearHistory()">Clear history</button>
+          </div>
+          <div class="leaf-hist" id="leafHist"></div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════ HARVEST COUNTDOWN ══════════════════════════════ -->
+      <div class="section" id="section-harvest">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">🌾 Harvest Countdown</div>
+            <div class="sec-sub">Track days to harvest for your planted crops</div>
+          </div>
+        </div>
+
+        <!-- Monitored crop quick-add banner -->
+        <div class="harvest-from-monitor" id="harvestFromMonitor">
+          <div style="font-size:1.5rem" id="hfmEmoji">🌱</div>
+          <div class="hfm-label">
+            <div style="font-weight:700;color:#fff" id="hfmCropName">—</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:.1rem">Your monitored crop — did you plant it
+              today?</div>
+          </div>
+          <button class="hfm-btn" onclick="quickAddMonitoredCrop()">＋ I Planted This Today</button>
+        </div>
+
+        <div class="card" style="margin-bottom:1.25rem">
+          <div class="card-title">Add a planting entry</div>
+          <div class="harvest-input-row" style="margin-top:.75rem">
+            <input type="text" id="harvestCropInput" placeholder="Crop name (e.g. tomato)" />
+            <input type="date" id="harvestDateInput" />
+            <button onclick="addHarvestEntry()">＋ Add</button>
+          </div>
+        </div>
+        <div id="harvestList"></div>
+      </div>
+      <div class="section" id="section-monitor">
+        <div class="sec-hdr">
+          <div>
+            <div class="sec-title">🌿 Crop Monitor</div>
+            <div class="sec-sub">Select a recommended crop and track its health in real time</div>
+          </div>
+        </div>
+
+        <div id="monitorNoData" class="card"
+          style="text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem">
+          📡 Run a soil analysis first from the Dashboard to get crop recommendations.
+        </div>
+
+        <!-- Crop selection cards -->
+        <div id="cropSelectPanel" style="display:none">
+          <div class="card gap" style="margin-bottom:1.25rem">
+            <div class="card-title">🥬 AI Recommended Crops</div>
+            <p style="font-size:.78rem;color:var(--muted);margin-bottom:1.1rem;line-height:1.65">
+              Based on your soil parameters. Pick one to get a full health check, fertilizer plan, and watering
+              schedule.
+            </p>
+            <div class="crop-cards-grid" id="cropCardsGrid"></div>
+            <button class="monitor-btn" id="monitorBtn" disabled onclick="startMonitoring()">
+              🔬 Analyse Selected Crop
+            </button>
+          </div>
+        </div>
+
+        <!-- Health Report -->
+        <div class="health-report" id="healthReport">
+          <div class="monitor-loading" id="monitorLoading">
+            <span class="monitor-spin">🌱</span>
+            Analysing crop health against your soil parameters...
+          </div>
+
+          <div class="health-header" id="healthHeader" style="display:none">
+            <div class="health-crop-avatar" id="healthAvatar">🌱</div>
+            <div style="flex:1">
+              <div class="health-crop-title" id="healthCropTitle">—</div>
+              <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">● Active monitoring</div>
+              <div class="health-status-badge" id="healthStatusBadge">—</div>
+            </div>
+            <div class="health-score-pill">
+              <div class="health-score-big" id="healthScoreBig">—</div>
+              <div class="health-score-lbl">Health Score</div>
+            </div>
+          </div>
+
+          <div id="healthAlerts"></div>
+
+          <div class="card gap" id="paramCard" style="display:none">
+            <div class="card-title">📐 Soil Parameters vs Ideal Range</div>
+            <div class="param-grid" id="paramGrid"></div>
+          </div>
+
+          <div class="card gap" id="fertAdviceCard" style="display:none">
+            <div class="card-title">🧪 Fertilizer Recommendations</div>
+            <div class="fert-advice-list" id="fertAdviceList"></div>
+          </div>
+
+          <div class="g2 gap" id="phWaterCard" style="display:none">
+            <div class="card">
+              <div class="card-title">⚗️ pH Correction</div>
+              <div id="phAdviceContent"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">💧 Watering Schedule</div>
+              <div id="wateringContent"></div>
+            </div>
+          </div>
+
+          <button class="monitor-btn" id="reselectBtn" onclick="resetMonitor()"
+            style="display:none;margin-bottom:1.5rem">
+            ← Choose a Different Crop
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="toast" id="toast"><span id="toastIcon">🔔</span><span id="toastMsg"></span></div>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+  <script>
+    // ════════════════════════════════════════
+    // CANVAS BG
+    // ════════════════════════════════════════
+    (function () {
+      const canvas = document.getElementById('bgCanvas'), ctx = canvas.getContext('2d');
+      let W, H;
+      function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+      window.addEventListener('resize', resize); resize();
+      const particles = Array.from({ length: 120 }, () => ({
+        x: Math.random() * 1000, y: Math.random() * 800,
+        r: Math.random() * 1.8 + 0.4, speed: Math.random() * 0.25 + 0.05,
+        drift: (Math.random() - .5) * 0.15, alpha: Math.random() * 0.4 + 0.05,
+        color: Math.random() > .5 ? '#3ddc84' : '#2dd4bf'
+      }));
+      function drawGrid() {
+        ctx.globalAlpha = 0.025; ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 0.5;
+        const s = 60;
+        for (let x = 0; x < W; x += s) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+        for (let y = 0; y < H; y += s) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      }
+      function loop() {
+        ctx.clearRect(0, 0, W, H); drawGrid();
+        particles.forEach(p => {
+          p.y -= p.speed; p.x += p.drift;
+          if (p.y < -10) { p.y = H + 5; p.x = Math.random() * W; }
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.fill();
+        });
+        ctx.globalAlpha = 1; requestAnimationFrame(loop);
+      }
+      loop();
+    })();
+
+    // ════════════════════════════════════════
+    // CROP MAPS (declared first — used on load)
+    // ════════════════════════════════════════
+    const CROP_EMOJI = {
+      tomato: '🍅', chilli: '🌶️', brinjal: '🍆', spinach: '🥬', coriander: '🌿', mint: '🌱',
+      basil: '🌿', okra: '🥒', cucumber: '🥒', beans: '🫘', ginger: '🫚', turmeric: '🟡',
+      lettuce: '🥬', radish: '🌰', fenugreek: '🌿', microgreens: '🌱', amaranthus: '🌺',
+      rice: '🌾', wheat: '🌾', maize: '🌽', chickpea: '🫘', mungbean: '🫘', blackgram: '🫘',
+      lentil: '🫘', pomegranate: '🍎', banana: '🍌', mango: '🥭', grapes: '🍇',
+      watermelon: '🍉', muskmelon: '🍈', apple: '🍎', orange: '🍊', papaya: '🍈',
+      coconut: '🥥', coffee: '☕', kidneybeans: '🫘', pigeonpeas: '🫘', mothbeans: '🫘',
+    };
+    function getCropEmoji(n) { return CROP_EMOJI[(n || '').toLowerCase().trim()] || '🌱'; }
+
+    const CROP_SPOT_MAP = {
+      tomato: { spot: '☀️ Rooftop Pots', tip: 'Tomatoes need full sun (6+ hrs) — rooftop pots are ideal. Use 15–20L grow bags.', key: 'Rooftop Pot A' },
+      chilli: { spot: '☀️ Rooftop Pots', tip: 'Chillies thrive in heat and direct sun. 12L pots on the rooftop work great.', key: 'Rooftop Pot A' },
+      brinjal: { spot: '☀️ Rooftop Pots', tip: 'Brinjal loves full sun. Use large 15L+ pots on the rooftop for best yield.', key: 'Rooftop Pot A' },
+      spinach: { spot: '🪟 Window Sill / Balcony', tip: 'Spinach tolerates partial shade — a south-facing window sill or shaded balcony corner works well.', key: 'Window Bed' },
+      coriander: { spot: '🪟 Window Sill Bed', tip: 'Coriander grows fast in shallow trays — perfect for window sills with 4+ hrs of morning light.', key: 'Window Bed' },
+      mint: { spot: '🌿 Balcony Box (hanging)', tip: 'Mint prefers partial shade and moist soil — keep it in a hanging balcony pot, away from other herbs.', key: 'Balcony Box' },
+      basil: { spot: '🌿 Balcony Railing Box', tip: 'Basil loves warmth and indirect light — balcony railing planters near a south-facing wall are perfect.', key: 'Balcony Box' },
+      lettuce: { spot: '🌿 Balcony Box', tip: 'Lettuce prefers cooler temps and partial shade — balcony boxes with morning sun are ideal.', key: 'Balcony Box' },
+      radish: { spot: '🪟 Window Sill / Balcony', tip: 'Radish is compact and fast-growing — trays on a sunny window sill work well.', key: 'Window Bed' },
+      beans: { spot: '🌍 Ground Patch', tip: 'Beans need deep soil and support structures — a ground patch or large raised bed is best.', key: 'Ground Patch' },
+      cucumber: { spot: '🌍 Ground Patch', tip: 'Cucumber vines need space and deep soil — plant in the ground and train up a bamboo trellis.', key: 'Ground Patch' },
+      ginger: { spot: '🌍 Ground Patch / Rooftop', tip: 'Ginger prefers partial shade and rich, moist soil — ground patch or a large deep pot.', key: 'Ground Patch' },
+      turmeric: { spot: '🌍 Ground Patch', tip: 'Turmeric needs deep, well-drained soil and partial shade — ground patch with compost is ideal.', key: 'Ground Patch' },
+      rice: { spot: '🌍 Ground Patch', tip: 'Rice needs waterlogged conditions — only suitable in a ground patch with good water retention.', key: 'Ground Patch' },
+      maize: { spot: '🌍 Ground Patch / Rooftop', tip: 'Maize needs full sun and deep soil — large rooftop grow bags (25L+) or a ground patch work.', key: 'Ground Patch' },
+    };
+
+    function renderSpotSuggestion(cropName, spot) {
+      const el = document.getElementById('spotSuggest');
+      if (!el || !cropName || cropName === '—') { if (el) el.classList.remove('show'); return; }
+      const key = cropName.toLowerCase().trim();
+      const info = CROP_SPOT_MAP[key];
+      if (info) {
+        document.getElementById('spotSuggestIcon').textContent = getCropEmoji(cropName);
+        document.getElementById('spotSuggestText').innerHTML = `<strong style="color:#fff;text-transform:capitalize">${cropName}</strong> grows best in <strong style="color:var(--green)">${info.spot}</strong> — ${info.tip}`;
+        el.classList.add('show');
+        const banner = document.getElementById('spotCropBanner');
+        if (banner) { document.getElementById('spotCropBannerText').innerHTML = `${getCropEmoji(cropName)} <strong style="text-transform:capitalize">${cropName}</strong> → Best placed in <strong style="color:var(--green)">${info.spot}</strong>. ${info.tip}`; banner.style.display = 'block'; }
+      } else {
+        const si = document.getElementById('spotSuggestIcon'), st = document.getElementById('spotSuggestText');
+        if (si) si.textContent = getCropEmoji(cropName);
+        if (st) st.textContent = cropName + ' — go to Garden Spots for detailed placement tips.';
+        el.classList.add('show');
+      }
+    }
+
+    function quickSelectCrop(name) {
+      if (!name || name === '—') return;
+      showSection('monitor');
+      showToast('🌿', 'Opening crop monitor for ' + name + '…', 2500);
+    }
+
+    // ════════════════════════════════════════
+    // STATE
+    // ════════════════════════════════════════
+    const FLASK = 'http://localhost:5000';
+    let lastHash = null, currentData = null, currentResult = null, activeSpot = 'Rooftop Pot A';
+    let history = JSON.parse(localStorage.getItem('soilHistory') || '[]');
+    let cachedResult = JSON.parse(localStorage.getItem('soilLastResult') || 'null');
+    let cachedData = JSON.parse(localStorage.getItem('soilLastData') || 'null');
+
+    // Chart instances
+    let fertilityChartInst = null, fertSnapshotInst = null, healthChartInst = null, phChartInst = null;
+    let currentFertView = 'bar';
+
+    // Sanitize old cached results missing confidence2/3
+    if (cachedResult) {
+      if (cachedResult.confidence2 === undefined) cachedResult.confidence2 = cachedResult.confidence1 || 0;
+      if (cachedResult.confidence3 === undefined) cachedResult.confidence3 = cachedResult.confidence1 || 0;
+    }
+
+    if (cachedResult && cachedData) {
+      currentData = cachedData; currentResult = cachedResult;
+      showOffline(true); populateSensors(cachedData);
+      renderResults(cachedResult, cachedData);
+      document.getElementById('resultsSection').style.display = 'block';
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+
+    // ════════════════════════════════════════
+    // POLLING
+    // ════════════════════════════════════════
+    async function poll() {
+      try {
+        const res = await fetch(`${FLASK}/latest`), json = await res.json();
+        showOffline(false);
+        if (json.status === 'waiting') { setStatus('waiting', 'WAITING', 'Waiting for sensor data from your device...'); return; }
+        const d = json.data, hash = JSON.stringify(d);
+        if (hash !== lastHash) {
+          lastHash = hash; currentData = d;
+          populateSensors(d);
+          document.getElementById('analyzeBtn').disabled = false;
+          document.getElementById('lastUpd').textContent = 'New reading at ' + new Date().toLocaleTimeString() + ' — press Analyse to run';
+          setStatus('live', 'LIVE', 'New data ready — press ⚡ Analyse Soil to process');
+          checkAlerts(d);
+        } else { setStatus('live', 'LIVE', 'Sensor live · waiting for next reading'); }
+      } catch (e) {
+        setStatus('error', 'OFFLINE', 'Cannot reach server.py on port 5000');
+        if (cachedResult) showOffline(true);
+      }
+    }
+    poll(); setInterval(poll, 3000);
+
+    let monitorSelectedCrop = null;
+
+    // ════════════════════════════════════════
+    // NAVIGATION
+    // ════════════════════════════════════════
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('section-' + id).classList.add('active');
+      if (document.getElementById('nav-' + id)) document.getElementById('nav-' + id).classList.add('active');
+      if (id === 'weather') loadWeather();
+      if (id === 'charts') renderCharts();
+      if (id === 'fertilizer') renderFertSection();
+      if (id === 'calendar') renderCalendarForCrop(monitorSelectedCrop);
+      if (id === 'rotation') loadRotation();
+      if (id === 'pest') loadPestAlerts();
+      if (id === 'harvest') { renderHarvestList(); updateHarvestMonitorBanner(); }
+      if (id === 'leaf') initLeaf();
+      if (id === 'spots' && currentResult) renderSpotSuggestion(currentResult.crop1, activeSpot);
+    }
+
+    function selectSpot(btn, name) {
+      document.querySelectorAll('.spot-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active'); activeSpot = name;
+      document.getElementById('activeSpotLabel').textContent = name;
+      showToast('🪴', 'Switched to ' + name, 2000);
+    }
+
+    // ════════════════════════════════════════
+    // SENSORS
+    // ════════════════════════════════════════
+    function populateSensors(d) {
+      const map = { N: d.N, P: d.P, K: d.K, temp: d.temp, moisture: d.moisture, ph: d.ph };
+      for (const [k, v] of Object.entries(map)) {
+        const el = document.getElementById('val-' + k), bx = document.getElementById('box-' + k);
+        el.textContent = v; el.classList.remove('empty');
+        bx.classList.add('fresh'); setTimeout(() => bx.classList.remove('fresh'), 2000);
+      }
+    }
+
+    // ════════════════════════════════════════
+    // ALERTS
+    // ════════════════════════════════════════
+    function checkAlerts(d) {
+      const a = [];
+      if (d.ph < 5) a.push('pH critically low (' + d.ph + ') — soil too acidic. Add lime or wood ash.');
+      if (d.ph > 8.5) a.push('pH very high (' + d.ph + ') — add organic compost or coffee grounds to lower pH.');
+      if (d.N < 10) a.push('Nitrogen very low (' + d.N + ' mg/kg) — add liquid fertilizer or compost tea soon.');
+      if (parseFloat(d.moisture) > 85) a.push('Moisture very high (' + d.moisture + '%) — check for waterlogging, ensure pot drainage is clear.');
+      if (parseFloat(d.temp) > 40) a.push('Temperature very high (' + d.temp + '°C) — move pots to shade, water immediately.');
+      const banner = document.getElementById('alertBanner');
+      if (a.length) {
+        document.getElementById('alertText').innerHTML = a.join('<br>');
+        banner.classList.add('show'); showToast('🚨', a[0], 6000);
+        if (Notification.permission === 'granted') new Notification('Smart Soil Alert', { body: a[0] });
+      } else { banner.classList.remove('show'); }
+    }
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+
+    // ════════════════════════════════════════
+    // ANALYSIS
+    // ════════════════════════════════════════
+    async function runAnalysis() {
+      if (!currentData) return;
+      hideError(); showLoading(true);
+      document.getElementById('resultsSection').style.display = 'none';
+      document.getElementById('analyzeBtn').disabled = true;
+      const stages = [[12, 'Checking soil nutrients...'], [35, 'Fetching local rainfall data...'], [58, 'Running AI plant model...'], [78, 'Building watering guide...'], [92, 'Preparing home garden plan...']];
+      let si = 0;
+      const t = setInterval(() => { if (si < stages.length) { setBar(stages[si][0], stages[si][1]); si++; } }, 1000);
+      try {
+        await fetch(`${FLASK}/reset`);
+        const res = await fetch(`${FLASK}/sensor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentData) });
+        clearInterval(t);
+        if (!res.ok) throw new Error('Server error ' + res.status);
+        const result = await res.json();
+        currentResult = result;
+        localStorage.setItem('soilLastResult', JSON.stringify(result));
+        localStorage.setItem('soilLastData', JSON.stringify(currentData));
+        history.unshift({ time: new Date().toLocaleString(), spot: activeSpot, data: { ...currentData }, result: { ...result } });
+        if (history.length > 60) history.pop();
+        localStorage.setItem('soilHistory', JSON.stringify(history));
+        setBar(100, 'Done!');
+        setTimeout(() => {
+          showLoading(false);
+          renderResults(result, currentData);
+          document.getElementById('resultsSection').style.display = 'block';
+          document.getElementById('analyzeBtn').disabled = false;
+          renderHistory(); renderCalendar(result); renderFertCalc(currentData);
+          renderCharts();
+          showToast('✅', activeSpot + ' analysis complete', 3000);
+          if (currentResult) showCropSelector(currentResult);
+          // Scroll to results
+          document.getElementById('predHero').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          checkWateringReminder(currentData);
+        }, 400);
+      } catch (err) {
+        clearInterval(t); showLoading(false);
+        document.getElementById('analyzeBtn').disabled = false;
+        showError(err.message.includes('fetch') ? 'Cannot connect to server.py on port 5000' : err.message);
+      }
+    }
+
+    // ════════════════════════════════════════
+    // CROP MAPS (must be declared before renderResults)
+    // ════════════════════════════════════════
+    // ════════════════════════════════════════
+    // RENDER RESULTS
+    // ════════════════════════════════════════
+    function renderResults(d, raw) {
+      [['nVal', 'nBadge', d.nitrogen_level, raw.N],
+      ['pVal', 'pBadge', d.phosphorus_level, raw.P],
+      ['kVal', 'kBadge', d.potassium_level, raw.K]
+      ].forEach(([vi, bi, level, v]) => {
+        document.getElementById(vi).textContent = v;
+        const b = document.getElementById(bi); b.textContent = level; b.className = 'badge ' + level;
+      });
+      const sc = d.soil_health_score || 0, arc = 220;
+      document.getElementById('gVal').textContent = sc;
+      const f = document.getElementById('gFill');
+      f.setAttribute('stroke-dashoffset', arc - arc * (sc / 100));
+      f.setAttribute('stroke', sc >= 70 ? 'var(--green)' : sc >= 40 ? 'var(--amber)' : 'var(--red)');
+      const fs = d.fertility_score !== undefined ? d.fertility_score : '—';
+      const fl = d.fertility_level !== undefined ? d.fertility_level : '—';
+      const ru = d.rainfall_used !== undefined ? d.rainfall_used : '—';
+      document.getElementById('fertScore').textContent = fs !== '—' ? fs + '/100' : '—';
+      document.getElementById('fertLevel').textContent = fl;
+      document.getElementById('rainfallVal').textContent = ru !== '—' ? ru + ' mm' : '—';
+      document.getElementById('fbarFill').style.width = fs !== '—' ? fs + '%' : '0%';
+      document.getElementById('fbarLbl').textContent = fs !== '—' ? fs + '/100' : '—';
+
+      // ── PREDICTED CROPS HERO ──
+      const crops = [
+        { name: d.crop1 || '—', conf: d.confidence1 != null ? d.confidence1 : 0 },
+        { name: d.crop2 || '—', conf: d.confidence2 != null ? d.confidence2 : (d.confidence1 || 0) },
+        { name: d.crop3 || '—', conf: d.confidence3 != null ? d.confidence3 : (d.confidence1 || 0) },
+      ];
+      document.getElementById('predCropsRow').innerHTML = crops.map((c, i) => `
+        <div class="pred-crop-card${i === 0 ? ' top' : ''}" onclick="quickSelectCrop('${c.name}')">
+          ${i === 0 ? '<div class="ctag">TOP PICK</div>' : ''}
+          <span class="emoji">${getCropEmoji(c.name)}</span>
+          <div class="cname">${c.name}</div>
+          <div class="cconf">${Number(c.conf).toFixed(1)}% confidence</div>
+        </div>`).join('');
+      document.getElementById('predHero').style.display = 'block';
+
+      // Garden spot suggestion based on top crop
+      renderSpotSuggestion(d.crop1, activeSpot);
+
+      document.getElementById('planList').innerHTML = [d.plan1, d.plan2].map((p, i) =>
+        `<div class="plan-item"><span class="plan-num">${i + 1}.</span> ${p || '—'}</div>`
+      ).join('');
+      renderWatering(raw.moisture, raw.temp, d.rainfall_used);
+      renderContainerHealth(raw);
+    }
+
+    // Garden spot suggestion logic
+    // ════════════════════════════════════════
+    // WATERING
+    // ════════════════════════════════════════
+    function renderWatering(moist, tmp, rain) {
+      const h = parseFloat(moist) || 0, t = parseFloat(tmp) || 0, r = parseFloat(rain) || 0;
+      let amt, icon, desc;
+      if (r > 25) { amt = 'Skip today'; icon = '🌧'; desc = 'Good rainfall this week — no watering needed. Empty any saucers under pots to prevent root rot.'; }
+      else if (h > 75) { amt = 'Light mist'; icon = '💧'; desc = 'Soil moisture is good. Only mist the top layer if it feels dry to the touch.'; }
+      else if (t > 35) { amt = 'Water now'; icon = '🚿'; desc = 'Very hot — water all pots immediately in the morning. Check again in the evening.'; }
+      else if (h < 35) { amt = 'Water today'; icon = '🪣'; desc = 'Dry conditions — water at the base of plants until it drains from the bottom. Best done early morning.'; }
+      else { amt = 'Every 2 days'; icon = '🌿'; desc = 'Conditions are balanced. Check top 2 cm of soil — water only when it feels dry.'; }
+      document.getElementById('waterIcon').textContent = icon;
+      document.getElementById('waterAmt').textContent = amt;
+      document.getElementById('waterDesc').textContent = desc;
+    }
+
+    // ════════════════════════════════════════
+    // CONTAINER HEALTH
+    // ════════════════════════════════════════
+    function renderContainerHealth(raw) {
+      const h = parseFloat(raw.moisture) || 0, ph = parseFloat(raw.ph) || 7, n = parseFloat(raw.N) || 0, t = parseFloat(raw.temp) || 25;
+      const drainRisk = h > 80 ? 'CHECK DRAINAGE' : h > 65 ? 'MONITOR' : 'GOOD';
+      const heatRisk = t > 38 ? 'MOVE TO SHADE' : t > 32 ? 'ADD MULCH' : 'OK';
+      const rootHealth = n > 40 ? 'HEALTHY' : n > 20 ? 'FAIR' : 'NEEDS FEEDING';
+      const potMix = ph < 5.5 ? 'TOO ACIDIC' : ph > 8 ? 'TOO ALKALINE' : 'BALANCED';
+      const cls = v => ['CHECK DRAINAGE', 'MOVE TO SHADE', 'NEEDS FEEDING', 'TOO ACIDIC', 'TOO ALKALINE'].includes(v) ? 'crit' : ['MONITOR', 'ADD MULCH', 'FAIR'].includes(v) ? 'warn' : 'ok';
+      document.getElementById('containerList').innerHTML = `
+    <div class="container-row"><span class="container-lbl">Drainage risk</span><span class="${cls(drainRisk)}">${drainRisk}</span></div>
+    <div class="container-row"><span class="container-lbl">Heat stress</span><span class="${cls(heatRisk)}">${heatRisk}</span></div>
+    <div class="container-row"><span class="container-lbl">Root health</span><span class="${cls(rootHealth)}">${rootHealth}</span></div>
+    <div class="container-row"><span class="container-lbl">Potting mix pH</span><span class="${cls(potMix)}">${potMix}</span></div>
+    <div class="container-row"><span class="container-lbl">Active spot</span><span class="ok">${activeSpot}</span></div>`;
+    }
+
+    // ════════════════════════════════════════
+    // CHARTS — derive data from history
+    // ════════════════════════════════════════
+    function getChartData() {
+      if (!history.length) {
+        const labels = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7'];
+        return {
+          labels,
+          N: [28, 35, 42, 38, 50, 55, 48], P: [18, 22, 19, 26, 30, 28, 33], K: [45, 50, 55, 60, 52, 68, 72],
+          FS: [38, 45, 52, 49, 60, 64, 58], temp: [27, 29, 33, 31, 28, 32, 32],
+          hum: [58, 63, 70, 65, 60, 68, 62], health: [55, 62, 58, 66, 70, 68, 72],
+          ph: [6.1, 6.3, 5.9, 6.4, 6.6, 6.5, 6.6], isDemo: true
+        };
+      }
+      const slice = history.slice(0, 12).reverse();
+      return {
+        labels: slice.map((_, i) => 'R' + (i + 1)),
+        N: slice.map(h => parseFloat(h.data.N) || 0),
+        P: slice.map(h => parseFloat(h.data.P) || 0),
+        K: slice.map(h => parseFloat(h.data.K) || 0),
+        FS: slice.map(h => h.result.fertility_score || 0),
+        temp: slice.map(h => parseFloat(h.data.temp) || 0),
+        hum: slice.map(h => parseFloat(h.data.moisture) || 0),
+        health: slice.map(h => h.result.soil_health_score || 0),
+        ph: slice.map(h => parseFloat(h.data.ph) || 0),
+        isDemo: false
+      };
+    }
+
+    function avg(arr) { return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0; }
+
+    const gridClr = 'rgba(255,255,255,0.06)';
+    const tickClr = 'rgba(255,255,255,0.35)';
+
+    function renderCharts() {
+      const d = getChartData();
+
+      document.getElementById('avgN').textContent = avg(d.N);
+      document.getElementById('avgP').textContent = avg(d.P);
+      document.getElementById('avgK').textContent = avg(d.K);
+      document.getElementById('avgFS').textContent = avg(d.FS) + '/100';
+      document.getElementById('avgTemp').textContent = avg(d.temp) + '°C';
+      document.getElementById('avgHum').textContent = avg(d.hum) + '%';
+      document.getElementById('avgPh').textContent = (d.ph.reduce((a, b) => a + b, 0) / d.ph.length).toFixed(1);
+      document.getElementById('avgHealth').textContent = avg(d.health) + '/100';
+
+      const latestPh = d.ph[d.ph.length - 1];
+      let phMsg = '';
+      if (d.isDemo) phMsg = 'Showing demo data — run an analysis to see real pH readings.';
+      else if (latestPh < 6) phMsg = '⚠ Latest pH ' + latestPh.toFixed(1) + ' is below optimal (6.0–7.0). Add lime or wood ash.';
+      else if (latestPh > 7) phMsg = '⚠ Latest pH ' + latestPh.toFixed(1) + ' is above optimal. Add coffee grounds or compost.';
+      else phMsg = '✓ Latest pH ' + latestPh.toFixed(1) + ' is within the optimal range (6.0–7.0). Keep it up!';
+      document.getElementById('phNote').textContent = phMsg;
+
+      buildFertilityChart(d);
+      buildFertSnapshot(d);
+      buildHealthChart(d);
+      buildPhChart(d);
+    }
+
+    function buildFertilityChart(d) {
+      if (fertilityChartInst) { fertilityChartInst.destroy(); fertilityChartInst = null; }
+      const datasets = [
+        { label: 'Nitrogen', data: d.N, backgroundColor: currentFertView === 'bar' ? '#3ddc8499' : '#3ddc84', borderColor: '#3ddc84', borderWidth: 2, borderRadius: 4, tension: .4, fill: false, pointRadius: 3, pointStyle: 'circle' },
+        { label: 'Phosphorus', data: d.P, backgroundColor: currentFertView === 'bar' ? '#2dd4bf99' : '#2dd4bf', borderColor: '#2dd4bf', borderWidth: 2, borderRadius: 4, tension: .4, fill: false, pointRadius: 3, pointStyle: 'rectRot' },
+        { label: 'Potassium', data: d.K, backgroundColor: currentFertView === 'bar' ? '#60a5fa99' : '#60a5fa', borderColor: '#60a5fa', borderWidth: 2, borderRadius: 4, tension: .4, fill: false, pointRadius: 3, pointStyle: 'triangle' },
+        { label: 'Fertility', data: d.FS, backgroundColor: currentFertView === 'bar' ? '#f59e0b55' : '#f59e0b', borderColor: '#f59e0b', borderWidth: 2, borderRadius: 4, tension: .4, fill: false, pointRadius: 3, borderDash: currentFertView === 'line' ? [5, 3] : undefined },
+      ];
+      fertilityChartInst = new Chart(document.getElementById('fertilityChart'), {
+        type: currentFertView,
+        data: { labels: d.labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+          scales: {
+            x: { grid: { color: gridClr }, ticks: { color: tickClr, autoSkip: false, maxRotation: 0 } },
+            y: { min: 0, max: 110, grid: { color: gridClr }, ticks: { color: tickClr, callback: v => v } }
+          }
+        }
+      });
+    }
+
+    function buildFertSnapshot(d) {
+      if (fertSnapshotInst) { fertSnapshotInst.destroy(); fertSnapshotInst = null; }
+      const last = d.labels.length - 1;
+      fertSnapshotInst = new Chart(document.getElementById('fertSnapshot'), {
+        type: 'bar',
+        data: {
+          labels: ['Nitrogen', 'Phosphorus', 'Potassium', 'Fertility'],
+          datasets: [{
+            label: 'Latest',
+            data: [d.N[last], d.P[last], d.K[last], d.FS[last]],
+            backgroundColor: ['#3ddc84aa', '#2dd4bfaa', '#60a5faaa', '#f59e0baa'],
+            borderColor: ['#3ddc84', '#2dd4bf', '#60a5fa', '#f59e0b'],
+            borderWidth: 1, borderRadius: 6, borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + (ctx.dataIndex === 3 ? '/100' : ' mg/kg') } } },
+          scales: {
+            x: { min: 0, max: 110, grid: { color: gridClr }, ticks: { color: tickClr, callback: v => v } },
+            y: { grid: { display: false }, ticks: { color: tickClr } }
+          }
+        }
+      });
+    }
+
+    function buildHealthChart(d) {
+      if (healthChartInst) { healthChartInst.destroy(); healthChartInst = null; }
+      healthChartInst = new Chart(document.getElementById('healthChart'), {
+        type: 'line',
+        data: {
+          labels: d.labels,
+          datasets: [
+            { label: 'Temperature (°C)', data: d.temp, borderColor: '#f87171', backgroundColor: '#f8717122', tension: .4, fill: false, pointRadius: 4, borderWidth: 2, pointStyle: 'circle' },
+            { label: 'Moisture (%)', data: d.hum, borderColor: '#60a5fa', backgroundColor: '#60a5fa22', tension: .4, fill: false, pointRadius: 4, borderWidth: 2, pointStyle: 'rectRot' },
+            { label: 'Health score', data: d.health, borderColor: '#a78bfa', backgroundColor: '#a78bfa22', tension: .4, fill: true, pointRadius: 4, borderWidth: 2, pointStyle: 'triangle' },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+          scales: {
+            x: { grid: { color: gridClr }, ticks: { color: tickClr, autoSkip: false, maxRotation: 0 } },
+            y: { min: 20, max: 105, grid: { color: gridClr }, ticks: { color: tickClr } }
+          }
+        }
+      });
+    }
+
+    function buildPhChart(d) {
+      if (phChartInst) { phChartInst.destroy(); phChartInst = null; }
+      phChartInst = new Chart(document.getElementById('phChart'), {
+        type: 'line',
+        data: {
+          labels: d.labels,
+          datasets: [
+            { label: 'pH', data: d.ph, borderColor: '#2dd4bf', backgroundColor: '#2dd4bf22', tension: .4, fill: false, pointRadius: 5, borderWidth: 2, pointStyle: 'circle' },
+            { label: 'Optimal min 6.0', data: Array(d.labels.length).fill(6.0), borderColor: '#f59e0b66', borderDash: [5, 4], borderWidth: 1, pointRadius: 0, fill: false },
+            { label: 'Optimal max 7.0', data: Array(d.labels.length).fill(7.0), borderColor: '#f59e0b66', borderDash: [5, 4], borderWidth: 1, pointRadius: 0, fill: '-1', backgroundColor: '#f59e0b14' },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { filter: item => item.datasetIndex === 0, callbacks: { label: ctx => ' pH ' + ctx.raw.toFixed(1) } } },
+          scales: {
+            x: { grid: { color: gridClr }, ticks: { color: tickClr, autoSkip: false, maxRotation: 0 } },
+            y: { min: 4.5, max: 8.5, grid: { color: gridClr }, ticks: { color: tickClr, callback: v => v.toFixed(1) } }
+          }
+        }
+      });
+    }
+
+    function switchFertChart(type) {
+      currentFertView = type;
+      document.getElementById('fertTab-bar').classList.toggle('active', type === 'bar');
+      document.getElementById('fertTab-line').classList.toggle('active', type === 'line');
+      const d = getChartData();
+      buildFertilityChart(d);
+    }
+
+    // ════════════════════════════════════════
+    // HISTORY
+    // ════════════════════════════════════════
+    function renderHistory() {
+      const el = document.getElementById('historyCard');
+      if (!history.length) { el.innerHTML = '<div class="empty-state">No readings yet</div>'; return; }
+      el.innerHTML = `<table class="htable">
+    <thead><tr><th>Time</th><th>Spot</th><th>N</th><th>P</th><th>K</th><th>Temp</th><th>pH</th><th>Moisture</th><th>Fertility</th><th>Top Plant</th></tr></thead>
+    <tbody>${history.map(h => `<tr>
+      <td style="color:var(--muted);font-size:.65rem">${h.time}</td>
+      <td style="color:var(--green);font-size:.72rem">${h.spot || '—'}</td>
+      <td>${h.data.N}</td><td>${h.data.P}</td><td>${h.data.K}</td>
+      <td>${h.data.temp}°</td><td>${h.data.ph}</td><td>${h.data.moisture || h.data.humidity || '—'}%</td>
+      <td><span class="badge HIGH">${h.result.fertility_score}/100</span></td>
+      <td style="text-transform:capitalize;color:var(--green)">${h.result.crop1}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+    }
+
+    // ════════════════════════════════════════
+    // CROP CALENDAR
+    // ════════════════════════════════════════
+    const CROPS = {
+      rice: { sow: 'Jun–Jul', grow: 'Aug–Sep', harvest: 'Oct–Nov', sowM: [6, 7] },
+      wheat: { sow: 'Nov–Dec', grow: 'Jan–Feb', harvest: 'Mar–Apr', sowM: [11, 12] },
+      maize: { sow: 'Jun–Jul', grow: 'Aug–Sep', harvest: 'Sep–Oct', sowM: [6, 7] },
+      tomato: { sow: 'Nov–Jan', grow: 'Feb–Mar', harvest: 'Apr–May', sowM: [11, 12, 1] },
+      ginger: { sow: 'Apr–May', grow: 'Jun–Oct', harvest: 'Nov–Jan', sowM: [4, 5] },
+      turmeric: { sow: 'Apr–May', grow: 'Jun–Oct', harvest: 'Nov–Jan', sowM: [4, 5] },
+      spinach: { sow: 'Oct–Dec', grow: 'Jan–Feb', harvest: 'Feb–Mar', sowM: [10, 11, 12] },
+      coriander: { sow: 'Oct–Nov', grow: 'Dec–Jan', harvest: 'Jan–Feb', sowM: [10, 11] },
+      radish: { sow: 'Oct–Dec', grow: 'Nov–Jan', harvest: 'Dec–Feb', sowM: [10, 11, 12] },
+      mustard: { sow: 'Oct–Nov', grow: 'Nov–Jan', harvest: 'Feb–Mar', sowM: [10, 11] },
+      beans: { sow: 'Jun–Jul', grow: 'Aug–Sep', harvest: 'Sep–Oct', sowM: [6, 7] },
+      cucumber: { sow: 'Feb–Mar', grow: 'Apr–May', harvest: 'May–Jun', sowM: [2, 3] },
+    };
+    const SPOT_NOTES = { 'Rooftop Pot A': 'Great for full-sun pots — 12L+ grow bags work best.', 'Balcony Box': 'Use railing planters or shallow trays.', 'Window Bed': 'Choose compact, fast-growing varieties.', 'Ground Patch': 'Ideal — plants have more root space here.' };
+
+    function renderCalendar(result) {
+      // store for later use when crop is selected
+      window._lastCalResult = result;
+      renderCalendarForCrop(monitorSelectedCrop);
+    }
+
+    function renderCalendarForCrop(cropName) {
+      const month = new Date().getMonth() + 1;
+      const el = document.getElementById('calendarCard');
+      const result = window._lastCalResult;
+      if (!result) { el.innerHTML = '<div class="empty-state">Run an analysis first</div>'; return; }
+      if (!cropName) {
+        // show all 3 suggested crops
+        const crops = [result.crop1, result.crop2, result.crop3];
+        el.innerHTML = '<div class="card-title" style="margin-bottom:1rem">📅 Suggested Crops — Planting Timeline</div>' + crops.map(name => {
+          if (!name) return '';
+          const info = CROPS[name.toLowerCase()] || null, note = SPOT_NOTES[activeSpot] || '';
+          if (!info) return `<div class="cal-crop"><div class="cal-crop-name">${name}</div><div style="font-size:.75rem;color:var(--muted)">Calendar data not available.</div></div>`;
+          const nowSow = info.sowM.includes(month);
+          return calCropHTML(name, info, note, nowSow);
+        }).join('');
+        return;
+      }
+      // show only selected crop
+      const info = CROPS[cropName.toLowerCase()] || null, note = SPOT_NOTES[activeSpot] || '';
+      const nowSow = info ? info.sowM.includes(month) : false;
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem">
+        <div class="card-title">📅 Planting Timeline</div>
+        <span style="font-size:.75rem;color:var(--green);font-weight:600;text-transform:capitalize">— ${cropName}</span>
+      </div>` + (info ? calCropHTML(cropName, info, note, nowSow) : `<div class="cal-crop"><div class="cal-crop-name">${cropName}</div><div style="font-size:.75rem;color:var(--muted)">Calendar data not available for this crop.</div></div>`);
+    }
+
+    function calCropHTML(name, info, note, nowSow) {
+      return `<div class="cal-crop">
+        <div class="cal-crop-name">${name} ${nowSow ? '<span class="now-tag">← Plant now!</span>' : ''}</div>
+        ${note ? `<div style="font-size:.72rem;color:var(--muted);margin-bottom:.65rem">🪴 ${note}</div>` : ''}
+        <div class="timeline">
+          <div class="tl sow"><span class="ti">🌱</span>Sow<br>${info.sow}</div>
+          <div class="tl grow"><span class="ti">🌿</span>Grow<br>${info.grow}</div>
+          <div class="tl harvest"><span class="ti">🌾</span>Harvest<br>${info.harvest}</div>
+        </div>
+      </div>`;
+    }
+
+    // ════════════════════════════════════════
+    // FERTILIZER
+    // ════════════════════════════════════════
+    function renderFertSection() {
+      if (!monitorSelectedCrop || !currentData) {
+        document.getElementById('fertNoSelect').style.display = 'block';
+        document.getElementById('fertWithCrop').style.display = 'none';
+        return;
+      }
+      document.getElementById('fertNoSelect').style.display = 'none';
+      document.getElementById('fertWithCrop').style.display = 'block';
+      document.getElementById('fertCropEmoji').textContent = getCropEmoji(monitorSelectedCrop);
+      document.getElementById('fertCropLabel').textContent = monitorSelectedCrop;
+      document.getElementById('fertSub').textContent = 'Tailored for: ' + monitorSelectedCrop.charAt(0).toUpperCase() + monitorSelectedCrop.slice(1);
+      renderFertCalc(currentData);
+    }
+
+    function renderFertCalc(raw) {
+      const n = parseFloat(raw.N) || 0, p = parseFloat(raw.P) || 0, k = parseFloat(raw.K) || 0, ph = parseFloat(raw.ph) || 7;
+      const items = [
+        { name: 'Urea (Nitrogen)', needed: Math.max(0, (100 - n) * 0.003), ok: n >= 50, unit: 'g' },
+        { name: 'DAP (Phosphorus)', needed: Math.max(0, (100 - p) * 0.002), ok: p >= 50, unit: 'g' },
+        { name: 'MOP (Potassium)', needed: Math.max(0, (100 - k) * 0.0025), ok: k >= 50, unit: 'g' },
+        { name: 'Kitchen compost', needed: n < 30 ? 200 : 100, ok: n >= 60, unit: 'g (mix into top layer)' },
+        { name: 'Compost tea (liquid)', needed: n < 40 ? '50 ml/week' : '—', ok: n >= 40, unit: '' },
+      ];
+      document.getElementById('fertList').innerHTML = items.map(i =>
+        `<div class="fert-row"><span class="fert-lbl">${i.name}</span><span class="fert-val ${i.ok ? 'ok' : ''}">${i.ok ? '✓ Sufficient' : typeof i.needed === 'string' ? i.needed : i.needed.toFixed(1) + ' ' + i.unit}</span></div>`
+      ).join('');
+      let phRows = [];
+      if (ph < 6) phRows = [{ l: 'Wood ash or lime', v: ((6 - ph) * 5).toFixed(0) + ' g per pot', ok: false }, { l: 'Crushed eggshells', v: 'Sprinkle on soil surface', ok: false }, { l: 'Avoid', v: 'Coffee grounds (makes it more acidic)', ok: false }];
+      else if (ph > 8) phRows = [{ l: 'Coffee grounds', v: '1–2 tbsp per pot', ok: false }, { l: 'Sulfur powder', v: ((ph - 8) * 3).toFixed(0) + ' g per pot', ok: false }, { l: 'Peat moss', v: 'Mix into potting soil', ok: false }];
+      else phRows = [{ l: 'pH Status', v: 'Optimal (' + ph + ')', ok: true }, { l: 'No correction needed', v: 'Maintain with compost', ok: true }, { l: 'Next check', v: 'In 2–4 weeks', ok: true }];
+      document.getElementById('phList').innerHTML = phRows.map(r =>
+        `<div class="fert-row"><span class="fert-lbl">${r.l}</span><span class="fert-val ${r.ok ? 'ok' : ''}">${r.v}</span></div>`
+      ).join('');
+    }
+
+    // ════════════════════════════════════════
+    // WEATHER — Direct OpenWeatherMap API
+    // ════════════════════════════════════════
+    const OWM_KEY = '3c466ca4c6d8e0a29788218f2dc189b2';
+    // Default coords: Kollam, Kerala (adjust if needed)
+    let wxLat = 8.8832, wxLon = 76.5945, wxCity = 'Kollam, Kerala';
+
+    function owmWeatherIcon(id, pod) {
+      if (id >= 200 && id < 300) return '⛈';
+      if (id >= 300 && id < 400) return '🌦';
+      if (id >= 500 && id < 600) return id >= 502 ? '🌧' : '🌦';
+      if (id >= 600 && id < 700) return '❄️';
+      if (id >= 700 && id < 800) return '🌫';
+      if (id === 800) return pod === 'n' ? '🌙' : '☀️';
+      if (id === 801) return '🌤';
+      if (id <= 803) return '⛅';
+      return '☁️';
+    }
+
+    async function loadWeather() {
+      document.getElementById('wxList').innerHTML = '<div class="empty-state" style="padding:1rem 0">Fetching weather...</div>';
+      document.getElementById('wxCurrentCard').style.display = 'none';
+
+      // Try geolocation first
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => { wxLat = pos.coords.latitude; wxLon = pos.coords.longitude; wxCity = 'Your Location'; fetchOwmWeather(); },
+          () => fetchOwmWeather()
+        );
+      } else { fetchOwmWeather(); }
+    }
+
+    async function fetchOwmWeather() {
+      try {
+        // Current weather
+        const curRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${wxLat}&lon=${wxLon}&appid=${OWM_KEY}&units=metric`);
+        const cur = await curRes.json();
+        if (cur.cod !== 200) throw new Error(cur.message || 'API error');
+
+        const cityName = cur.name ? cur.name + (cur.sys?.country ? ', ' + cur.sys.country : '') : wxCity;
+        const curIcon = owmWeatherIcon(cur.weather[0].id, 'n');
+        document.getElementById('wxCurIcon').textContent = curIcon;
+        document.getElementById('wxCurTemp').textContent = Math.round(cur.main.temp) + '°C';
+        document.getElementById('wxCurDesc').textContent = cur.weather[0].description.charAt(0).toUpperCase() + cur.weather[0].description.slice(1);
+        document.getElementById('wxCurLocation').textContent = '📍 ' + cityName;
+        document.getElementById('wxCurHum').textContent = cur.main.humidity + '%';
+        document.getElementById('wxCurWind').textContent = Math.round(cur.wind.speed * 3.6) + ' km/h';
+        document.getElementById('wxCurFeels').textContent = Math.round(cur.main.feels_like) + '°C';
+        document.getElementById('wxCurrentCard').style.display = 'block';
+
+        // 5-day forecast
+        const fcRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${wxLat}&lon=${wxLon}&appid=${OWM_KEY}&units=metric`);
+        const fc = await fcRes.json();
+
+        // Group by day
+        const days = {};
+        fc.list.forEach(item => {
+          const d = item.dt_txt.slice(0, 10);
+          if (!days[d]) days[d] = { min: item.main.temp_min, max: item.main.temp_max, rain: 0, desc: item.weather[0].description, id: item.weather[0].id, pop: item.pop };
+          else {
+            if (item.main.temp_min < days[d].min) days[d].min = item.main.temp_min;
+            if (item.main.temp_max > days[d].max) days[d].max = item.main.temp_max;
+            days[d].rain += (item.rain && item.rain['3h']) ? item.rain['3h'] : 0;
+            if (item.pop > days[d].pop) { days[d].pop = item.pop; days[d].desc = item.weather[0].description; days[d].id = item.weather[0].id; }
+          }
+        });
+
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const entries = Object.entries(days).slice(0, 5);
+        let totalRain = 0;
+
+        document.getElementById('wxList').innerHTML = entries.map(([date, d], i) => {
+          totalRain += d.rain;
+          const dt = new Date(date + 'T00:00:00');
+          const label = i === 0 ? 'Today' : dayNames[dt.getDay()];
+          const icon = owmWeatherIcon(d.id, 'd');
+          const rainStr = d.rain > 0.1 ? d.rain.toFixed(1) + ' mm' : '—';
+          return `<div class="wx-row">
+            <div class="wx-day">${label}</div>
+            <div class="wx-icon">${icon}</div>
+            <div class="wx-desc" style="text-transform:capitalize">${d.desc}</div>
+            <div class="wx-temp">${Math.round(d.min)}–${Math.round(d.max)}°C</div>
+            <div class="wx-mm">${rainStr}</div>
+          </div>`;
+        }).join('');
+
+        const todayRain = entries[0] ? entries[0][1].rain : 0;
+        document.getElementById('wToday').textContent = todayRain.toFixed(1) + ' mm';
+        document.getElementById('wWeek').textContent = totalRain.toFixed(1) + ' mm';
+        const skip = totalRain > 20;
+        document.getElementById('wSkip').textContent = skip ? 'Yes — rain is enough' : 'No — water your pots';
+        document.getElementById('wSkip').className = skip ? 'ok' : 'warn';
+        const maxTemp = Math.max(...entries.map(([, d]) => d.max));
+        const hot = maxTemp > 33;
+        document.getElementById('wHeat').textContent = hot ? `HIGH — ${Math.round(maxTemp)}°C expected, shade pots` : 'LOW — pots are fine';
+        document.getElementById('wHeat').className = hot ? 'warn' : 'ok';
+        document.getElementById('wPlant').textContent = totalRain > 5 && totalRain < 40 ? '✓ Yes — good conditions' : 'Not ideal this week';
+        if (currentData) renderWatering(currentData.moisture, currentData.temp, totalRain);
+      } catch (e) {
+        document.getElementById('wxList').innerHTML = `<div class="empty-state" style="padding:1rem 0">⚠ ${e.message}</div>`;
+      }
+    }
+
+    // ════════════════════════════════════════
+    // EXPORT
+    // ════════════════════════════════════════
+    function exportCSV() {
+      if (!history.length) { showToast('⚠', 'No data to export yet', 3000); return; }
+      const hdr = 'Time,Spot,N,P,K,Temp,Moisture,pH,FertilityScore,FertilityLevel,TopPlant,Conf1,Plant2,Plant3,Plan1,Plan2\n';
+      const rows = history.map(h => [h.time, h.spot || '—', h.data.N, h.data.P, h.data.K, h.data.temp, h.data.moisture || h.data.humidity || '', h.data.ph, h.result.fertility_score, h.result.fertility_level, h.result.crop1, h.result.confidence1, h.result.crop2, h.result.confidence2, h.result.crop3, h.result.confidence3, `"${h.result.plan1}"`, `"${h.result.plan2}"`].join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([hdr + rows], { type: 'text/csv' }));
+      a.download = `home-garden-soil-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click(); URL.revokeObjectURL(a.href);
+      showToast('✅', 'CSV exported!', 3000);
+    }
+
+    // ════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════
+    function setStatus(type, lbl, sub) { document.getElementById('statusDot').className = 'dot ' + type; document.getElementById('statusLbl').textContent = lbl; document.getElementById('topSub').textContent = sub; }
+    function showOffline(on) { document.getElementById('offlineBanner').classList.toggle('show', on); }
+    function showLoading(on) { document.getElementById('loadingWrap').style.display = on ? 'block' : 'none'; if (on) setBar(5, 'Checking your garden soil...'); }
+    function setBar(p, m) { document.getElementById('loadFill').style.width = p + '%'; document.getElementById('loadMsg').textContent = m; }
+    function showError(m) { const b = document.getElementById('errorBox'); b.textContent = '⚠ ' + m; b.style.display = 'block'; }
+    function hideError() { document.getElementById('errorBox').style.display = 'none'; }
+    function showToast(icon, msg, dur) { const t = document.getElementById('toast'); document.getElementById('toastIcon').textContent = icon; document.getElementById('toastMsg').textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), dur || 3000); }
+
+    renderHistory();
+
+    // ════════════════════════════════════════
+    // CROP EMOJI MAP
+    // ════════════════════════════════════════
+    // Called after analysis — show crop selector in monitor section
+    function showCropSelector(result) {
+      document.getElementById('monitorCTA').style.display = 'block';
+      document.getElementById('ctaLabel').textContent = 'Select a crop to monitor its health →';
+      document.getElementById('ctaCropEmoji').textContent = '🌱';
+      document.getElementById('monitorNoData').style.display = 'none';
+      document.getElementById('cropSelectPanel').style.display = 'block';
+      const crops = [
+        { name: result.crop1 || '', conf: result.confidence1 != null ? result.confidence1 : 0 },
+        { name: result.crop2 || '', conf: result.confidence2 != null ? result.confidence2 : (result.confidence1 || 0) },
+        { name: result.crop3 || '', conf: result.confidence3 != null ? result.confidence3 : (result.confidence1 || 0) },
+      ].filter(c => c.name);
+      // Store names safely in array — avoids quote-breaking for names with spaces
+      window._monitorCrops = crops;
+      document.getElementById('cropCardsGrid').innerHTML = crops.map((c, i) => `
+        <div class="crop-card-select" id="cropCard-${i}" onclick="selectMonitorCrop(${i})">
+          <div class="selected-check">✓</div>
+          <div class="crop-emoji-wrap">${getCropEmoji(c.name)}</div>
+          <div class="crop-card-name">${c.name}</div>
+          <div class="crop-card-conf">AI confidence: ${Number(c.conf).toFixed(1)}%</div>
+        </div>`).join('');
+      document.getElementById('monitorBtn').disabled = true;
+      document.getElementById('healthReport').classList.remove('visible');
+      document.getElementById('healthHeader').style.display = 'none';
+      document.getElementById('paramCard').style.display = 'none';
+      document.getElementById('fertAdviceCard').style.display = 'none';
+      document.getElementById('phWaterCard').style.display = 'none';
+      document.getElementById('healthAlerts').innerHTML = '';
+      document.getElementById('reselectBtn').style.display = 'none';
+      document.getElementById('monitorLoading').classList.remove('show');
+    }
+
+    function selectMonitorCrop(idx) {
+      document.querySelectorAll('.crop-card-select').forEach(c => c.classList.remove('selected'));
+      document.getElementById('cropCard-' + idx).classList.add('selected');
+      monitorSelectedCrop = (window._monitorCrops[idx] || {}).name || '';
+      document.getElementById('monitorBtn').disabled = false;
+    }
+
+    async function startMonitoring() {
+      if (!monitorSelectedCrop) return;
+      console.log('Monitoring crop:', monitorSelectedCrop);
+      document.getElementById('monitorBtn').disabled = true;
+      const report = document.getElementById('healthReport');
+      report.classList.add('visible');
+      document.getElementById('monitorLoading').classList.add('show');
+      document.getElementById('healthHeader').style.display = 'none';
+      document.getElementById('paramCard').style.display = 'none';
+      document.getElementById('fertAdviceCard').style.display = 'none';
+      document.getElementById('phWaterCard').style.display = 'none';
+      document.getElementById('healthAlerts').innerHTML = '';
+      document.getElementById('reselectBtn').style.display = 'none';
+      try {
+        const res = await fetch(FLASK + '/crop_health', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crop: monitorSelectedCrop })
+        });
+        const d = await res.json();
+        document.getElementById('monitorLoading').classList.remove('show');
+        if (d.error) { showToast('⚠', d.error, 4000); document.getElementById('monitorBtn').disabled = false; return; }
+        renderHealthReport(d);
+        updateDashboardSummary(d);
+        renderCalendarForCrop(monitorSelectedCrop);
+        renderFertSection();
+        loadFertSchedule(monitorSelectedCrop);
+        // Auto-add to rotation history
+        const rh = JSON.parse(localStorage.getItem('rotationHistory') || '[]');
+        if (!rh.includes(monitorSelectedCrop)) { rh.push(monitorSelectedCrop); if (rh.length > 10) rh.shift(); localStorage.setItem('rotationHistory', JSON.stringify(rh)); }
+      } catch (e) {
+        document.getElementById('monitorLoading').classList.remove('show');
+        showToast('⚠', 'Could not reach /crop_health', 4000);
+        document.getElementById('monitorBtn').disabled = false;
+      }
+    }
+
+    function updateDashboardSummary(d) {
+      const card = document.getElementById('activeCropSummary');
+      card.style.display = 'block';
+      // Update CTA to reflect selected crop
+      document.getElementById('ctaCropEmoji').textContent = getCropEmoji(d.crop);
+      document.getElementById('ctaLabel').textContent = d.crop.charAt(0).toUpperCase() + d.crop.slice(1) + ' is being monitored — view full report →';
+      // Update sidebar indicator
+      const ind = document.getElementById('sidebarCropIndicator');
+      ind.style.display = 'flex';
+      document.getElementById('sidebarCropEmoji').textContent = getCropEmoji(d.crop);
+      document.getElementById('sidebarCropName').textContent = d.crop;
+      document.getElementById('sidebarCropScore').textContent = d.health_score + '/100';
+      // Pulse the monitor nav button
+      const monBtn = document.getElementById('nav-monitor');
+      monBtn.style.borderColor = 'var(--green)';
+      monBtn.style.background = 'rgba(61,220,132,.12)';
+      monBtn.style.color = 'var(--green)';
+      document.getElementById('summaryAvatar').textContent = getCropEmoji(d.crop);
+      document.getElementById('summaryCropName').textContent = d.crop.charAt(0).toUpperCase() + d.crop.slice(1);
+      updateHarvestMonitorBanner();
+      const sc = document.getElementById('summaryScore');
+      sc.textContent = d.health_score + '/100';
+      sc.style.color = d.health_score >= 70 ? 'var(--green)' : d.health_score >= 40 ? 'var(--amber)' : 'var(--red)';
+      const b = document.getElementById('summaryStatusBadge');
+      b.textContent = d.health_status; b.className = 'health-status-badge hs-' + d.health_status;
+      document.getElementById('summaryAlerts').innerHTML = (d.alerts || []).slice(0, 2)
+        .map(a => `<div style="font-size:.72rem;color:#fca5a5;padding:.3rem 0;border-top:1px solid var(--border)">⚠ ${a}</div>`).join('');
+    }
+
+    function renderHealthReport(d) {
+      const scoreEl = document.getElementById('healthScoreBig');
+      scoreEl.textContent = d.health_score + '/100';
+      scoreEl.style.color = d.health_score >= 70 ? 'var(--green)' : d.health_score >= 40 ? 'var(--amber)' : 'var(--red)';
+      document.getElementById('healthAvatar').textContent = getCropEmoji(d.crop);
+      document.getElementById('healthCropTitle').textContent = d.crop.charAt(0).toUpperCase() + d.crop.slice(1);
+      const badgeEl = document.getElementById('healthStatusBadge');
+      badgeEl.textContent = d.health_status; badgeEl.className = 'health-status-badge hs-' + d.health_status;
+      document.getElementById('healthHeader').style.display = 'flex';
+
+      if (d.alerts && d.alerts.length)
+        document.getElementById('healthAlerts').innerHTML =
+          d.alerts.map(a => `<div class="health-alert"><span style="flex-shrink:0">⚠</span><span>${a}</span></div>`).join('');
+
+      const pNames = { N: 'Nitrogen', P: 'Phosphorus', K: 'Potassium', temp: 'Temperature', moisture: 'Moisture', ph: 'pH Level' };
+      const pUnits = { N: ' mg/kg', P: ' mg/kg', K: ' mg/kg', temp: '°C', moisture: '%', ph: '' };
+      document.getElementById('paramGrid').innerHTML = Object.keys(d.scores).map(k => {
+        const sc = d.scores[k], cur = d.current[k], ideal = d.ideal[k];
+        const col = sc >= 80 ? '#3ddc84' : sc >= 50 ? '#f59e0b' : '#f87171';
+        return `<div class="param-item">
+          <div class="param-top"><div class="param-name">${pNames[k] || k}</div><div class="param-nums">${cur}${pUnits[k]}</div></div>
+          <div class="param-bar-track"><div class="param-bar-fill" style="width:${sc}%;background:${col}"></div></div>
+          <div class="param-score-lbl">Score: ${sc}/100 &nbsp;·&nbsp; Ideal: ${ideal}</div>
+        </div>`;
+      }).join('');
+      document.getElementById('paramCard').style.display = 'block';
+
+      if (d.fertilizer_advice && d.fertilizer_advice.length) {
+        document.getElementById('fertAdviceList').innerHTML = d.fertilizer_advice.map(fa => `
+          <div class="fert-advice-card urgency-${fa.urgency}">
+            <div class="fert-advice-top"><div class="fert-nutrient">${fa.nutrient}</div><span class="fert-status-tag fst-${fa.status}">${fa.status}</span></div>
+            <div class="fert-action">💡 ${fa.action}</div>
+            ${fa.organic && fa.organic !== '—' ? `<div class="fert-organic"><span>🌿 Organic:</span> ${fa.organic}</div>` : ''}
+          </div>`).join('');
+        document.getElementById('fertAdviceCard').style.display = 'block';
+      }
+
+      const ph = d.ph_advice, phCol = ph.status === 'OK' ? 'var(--green)' : ph.status === 'TOO_ACIDIC' ? 'var(--amber)' : 'var(--red)';
+      document.getElementById('phAdviceContent').innerHTML = `
+        <div style="font-size:.82rem;font-weight:700;color:${phCol};margin-bottom:.6rem">${ph.status.replace(/_/g, ' ')}</div>
+        <div style="font-size:.8rem;color:var(--green3);line-height:1.6;margin-bottom:.5rem">💡 ${ph.action}</div>
+        ${ph.organic && ph.organic !== '—' ? `<div style="font-size:.73rem;color:var(--muted);line-height:1.5;margin-bottom:.4rem">🌿 ${ph.organic}</div>` : ''}
+        <div style="font-size:.7rem;color:var(--muted2);font-family:var(--mono);margin-top:.4rem">${ph.note}</div>`;
+
+      const w = d.watering;
+      document.getElementById('wateringContent').innerHTML = `
+        <div class="watering-block">
+          <div style="font-size:2.5rem">💧</div>
+          <div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--teal);font-family:var(--mono)">${w.schedule}</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">${w.amount}</div>
+            <div class="watering-urgency wu-${w.urgency}">${w.urgency}</div>
+          </div>
+        </div>
+        <div style="font-size:.78rem;color:var(--green3);line-height:1.6;padding:.25rem">${w.tip}</div>`;
+
+      document.getElementById('phWaterCard').style.display = 'grid';
+      document.getElementById('reselectBtn').style.display = 'block';
+      document.getElementById('monitorBtn').disabled = false;
+      showToast('🌿', d.crop.charAt(0).toUpperCase() + d.crop.slice(1) + ' health report ready!', 3500);
+    }
+
+    function resetMonitor() {
+      document.getElementById('healthReport').classList.remove('visible');
+      monitorSelectedCrop = null;
+      document.querySelectorAll('.crop-card-select').forEach(c => c.classList.remove('selected'));
+      document.getElementById('monitorBtn').disabled = true;
+      document.getElementById('reselectBtn').style.display = 'none';
+      document.getElementById('activeCropSummary').style.display = 'none';
+      document.getElementById('sidebarCropIndicator').style.display = 'none';
+      document.getElementById('ctaLabel').textContent = 'Select a crop to monitor its health →';
+      document.getElementById('ctaCropEmoji').textContent = '🌱';
+      const monBtn = document.getElementById('nav-monitor');
+      monBtn.style.borderColor = '';
+      monBtn.style.background = '';
+      monBtn.style.color = '';
+      renderCalendarForCrop(null);
+      renderFertSection();
+      document.getElementById('cropSelectPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ════════════════════════════════════════
+    // WATERING REMINDER (browser notification)
+    // ════════════════════════════════════════
+    let wateringNotifDismissed = false;
+    function checkWateringReminder(data) {
+      if (wateringNotifDismissed) return;
+      const moisture = parseFloat(data.moisture) || 0;
+      const threshold = 40;
+      if (moisture < threshold) {
+        const msg = `Soil moisture is ${moisture}% — below ${threshold}%. Time to water your plants!`;
+        document.getElementById('wateringNotifMsg').textContent = msg;
+        document.getElementById('wateringNotifBar').style.display = 'flex';
+        if (Notification.permission === 'granted') {
+          new Notification('💧 Smart Soil — Water Reminder', { body: msg, icon: '🌱' });
+        }
+      } else {
+        document.getElementById('wateringNotifBar').style.display = 'none';
+      }
+    }
+    function dismissWateringNotif() {
+      wateringNotifDismissed = true;
+      document.getElementById('wateringNotifBar').style.display = 'none';
+    }
+    // Poll-based watering check
+    setInterval(() => {
+      if (currentData) { wateringNotifDismissed = false; checkWateringReminder(currentData); }
+    }, 5 * 60 * 1000); // every 5 minutes
+
+    // ════════════════════════════════════════
+    // ACCORDION (Garden Spots)
+    // ════════════════════════════════════════
+    function toggleAccordion(hdr) {
+      const acc = hdr.closest('.spot-accordion');
+      acc.classList.toggle('open');
+    }
+
+    // ════════════════════════════════════════
+    // HARVEST — monitored crop link
+    // ════════════════════════════════════════
+    function updateHarvestMonitorBanner() {
+      const banner = document.getElementById('harvestFromMonitor');
+      if (!monitorSelectedCrop) { banner.classList.remove('show'); return; }
+      document.getElementById('hfmEmoji').textContent = getCropEmoji(monitorSelectedCrop);
+      document.getElementById('hfmCropName').textContent = monitorSelectedCrop.charAt(0).toUpperCase() + monitorSelectedCrop.slice(1);
+      banner.classList.add('show');
+    }
+
+    function quickAddMonitoredCrop() {
+      if (!monitorSelectedCrop) return;
+      const today = new Date().toISOString().slice(0, 10);
+      harvestEntries.push({ crop: monitorSelectedCrop, plantedDate: today, id: Date.now() });
+      localStorage.setItem('harvestEntries', JSON.stringify(harvestEntries));
+      renderHarvestList();
+      showToast('🌱', monitorSelectedCrop + ' added — harvest countdown started!', 3000);
+    }
+
+    // ════════════════════════════════════════
+    // CROP ROTATION
+    // ════════════════════════════════════════
+    async function loadRotation() {
+      const el = document.getElementById('rotationContent');
+      const cropHistory = JSON.parse(localStorage.getItem('rotationHistory') || '[]');
+      if (!cropHistory.length && !monitorSelectedCrop) {
+        el.innerHTML = '<div class="card"><div class="empty-state">Monitor a crop first, or add crops to rotation history below.</div></div>';
+        renderRotationInput(el);
+        return;
+      }
+      const histToSend = cropHistory.length ? cropHistory : [monitorSelectedCrop];
+      el.innerHTML = '<div class="card"><div class="empty-state">Loading suggestions...</div></div>';
+      try {
+        const res = await fetch(`${FLASK}/crop_rotation`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ history: histToSend })
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
+        el.innerHTML = `
+          <div class="rotation-card">
+            <h4>Last crop grown: <span style="color:var(--text);text-transform:capitalize">${d.last_crop}</span> <span style="font-size:.7rem;color:var(--muted)">(${d.family})</span></h4>
+            <div style="font-size:.78rem;color:var(--green3);line-height:1.6;margin-bottom:.75rem">💡 ${d.reason}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.35rem;font-weight:600">PLANT NEXT:</div>
+            <div class="rotation-pills">${d.suggestions.map(s => `<span class="rotation-pill">${getCropEmoji(s)} ${s}</span>`).join('')}</div>
+            ${d.avoid.length ? `<div style="font-size:.72rem;color:var(--muted);margin:.5rem 0 .35rem;font-weight:600">AVOID:</div>
+            <div class="rotation-pills">${d.avoid.map(s => `<span class="rotation-pill avoid">✗ ${s}</span>`).join('')}</div>` : ''}
+          </div>
+          <div class="card" style="margin-top:.75rem">
+            <div class="card-title" style="margin-bottom:.6rem">📋 Your Rotation History</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Crops grown (oldest → latest):</div>
+            <div class="rotation-pills" style="margin-bottom:1rem">${histToSend.map(c => `<span class="rotation-pill">${getCropEmoji(c)} ${c}</span>`).join('')}</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <input id="rotAddInput" type="text" placeholder="Add crop to history" style="flex:1;min-width:140px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:.4rem .75rem;border-radius:8px;font-size:.8rem"/>
+              <button onclick="addRotationCrop()" style="background:var(--green);color:#000;border:none;border-radius:8px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer">Add</button>
+              <button onclick="clearRotationHistory()" style="background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:8px;padding:.4rem .9rem;font-size:.78rem;cursor:pointer">Clear</button>
+            </div>
+          </div>`;
+      } catch (e) {
+        el.innerHTML = `<div class="card"><div class="empty-state">⚠ ${e.message}</div></div>`;
+      }
+    }
+    function addRotationCrop() {
+      const inp = document.getElementById('rotAddInput');
+      const val = (inp.value || '').trim().toLowerCase();
+      if (!val) return;
+      const h = JSON.parse(localStorage.getItem('rotationHistory') || '[]');
+      h.push(val); if (h.length > 10) h.shift();
+      localStorage.setItem('rotationHistory', JSON.stringify(h));
+      inp.value = ''; loadRotation();
+    }
+    function clearRotationHistory() {
+      localStorage.removeItem('rotationHistory'); loadRotation();
+    }
+
+    // ════════════════════════════════════════
+    // PEST & DISEASE ALERTS
+    // ════════════════════════════════════════
+    async function loadPestAlerts() {
+      const el = document.getElementById('pestContent');
+      el.innerHTML = '<div class="card"><div class="empty-state">Checking conditions...</div></div>';
+      try {
+        const res = await fetch(`${FLASK}/pest_alert`);
+        const d = await res.json();
+        if (d.error) { el.innerHTML = `<div class="card"><div class="empty-state">⚠ ${d.error}</div></div>`; return; }
+        const condRow = `<div class="card" style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;padding:.75rem 1rem">
+          <div><span style="font-size:.7rem;color:var(--muted)">TEMPERATURE</span><br><span style="font-family:var(--mono);font-size:1.1rem;color:var(--text)">${d.temp}°C</span></div>
+          <div><span style="font-size:.7rem;color:var(--muted)">MOISTURE</span><br><span style="font-family:var(--mono);font-size:1.1rem;color:var(--text)">${d.moisture}%</span></div>
+          <div><span style="font-size:.7rem;color:var(--muted)">ALERTS FOUND</span><br><span style="font-family:var(--mono);font-size:1.1rem;color:${d.count > 0 ? 'var(--amber)' : 'var(--green)'}">${d.count}</span></div>
+        </div>`;
+        if (!d.alerts.length) {
+          el.innerHTML = condRow + '<div class="card"><div class="empty-state" style="color:var(--green)">✅ No pest or disease risks detected — conditions look good!</div></div>';
+          return;
+        }
+        el.innerHTML = condRow + d.alerts.map(a => `
+          <div class="pest-card pest-${a.risk}">
+            <div class="pest-risk">${a.risk} RISK</div>
+            <div class="pest-name">🦠 ${a.name}</div>
+            <div class="pest-action">💡 ${a.action}</div>
+            <div class="pest-organic">🌿 Organic: ${a.organic}</div>
+          </div>`).join('');
+      } catch (e) {
+        el.innerHTML = `<div class="card"><div class="empty-state">⚠ Could not reach server</div></div>`;
+      }
+    }
+
+    // ════════════════════════════════════════
+    // HARVEST COUNTDOWN
+    // ════════════════════════════════════════
+    const HARVEST_DAYS = {
+      tomato: 75, chilli: 90, brinjal: 70, spinach: 45, coriander: 40, mint: 60,
+      basil: 50, okra: 55, cucumber: 55, beans: 60, ginger: 270, turmeric: 240,
+      lettuce: 50, radish: 30, fenugreek: 35, microgreens: 14, amaranthus: 40,
+      rice: 120, wheat: 120, maize: 90, peas: 70, cowpea: 75,
+      pumpkin: 100, 'bitter gourd': 70, 'bottle gourd': 80, strawberry: 90, lemon: 180,
+    };
+    let harvestEntries = JSON.parse(localStorage.getItem('harvestEntries') || '[]');
+    function addHarvestEntry() {
+      const crop = (document.getElementById('harvestCropInput').value || '').trim().toLowerCase();
+      const date = document.getElementById('harvestDateInput').value;
+      if (!crop || !date) { showToast('⚠', 'Enter crop name and planting date', 3000); return; }
+      harvestEntries.push({ crop, plantedDate: date, id: Date.now() });
+      localStorage.setItem('harvestEntries', JSON.stringify(harvestEntries));
+      document.getElementById('harvestCropInput').value = '';
+      document.getElementById('harvestDateInput').value = '';
+      renderHarvestList();
+    }
+    function removeHarvestEntry(id) {
+      harvestEntries = harvestEntries.filter(e => e.id !== id);
+      localStorage.setItem('harvestEntries', JSON.stringify(harvestEntries));
+      renderHarvestList();
+    }
+    function renderHarvestList() {
+      const el = document.getElementById('harvestList');
+      if (!harvestEntries.length) { el.innerHTML = '<div class="card"><div class="empty-state">No crops added yet — enter a crop and planting date above.</div></div>'; return; }
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      el.innerHTML = harvestEntries.map(e => {
+        const planted = new Date(e.plantedDate); planted.setHours(0, 0, 0, 0);
+        const totalDays = HARVEST_DAYS[e.crop] || 60;
+        const elapsed = Math.floor((today - planted) / 86400000);
+        const remaining = Math.max(0, totalDays - elapsed);
+        const pct = Math.min(100, Math.round((elapsed / totalDays) * 100));
+        const harvestDate = new Date(planted); harvestDate.setDate(harvestDate.getDate() + totalDays);
+        const status = remaining === 0 ? '🎉 Ready to harvest!' : remaining <= 7 ? '⚡ Almost ready!' : `${remaining} days remaining`;
+        const col = remaining === 0 ? 'var(--green)' : remaining <= 7 ? 'var(--amber)' : 'var(--teal)';
+        return `<div class="harvest-card" style="margin-bottom:.75rem">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:.75rem">
+              <span style="font-size:2rem">${getCropEmoji(e.crop)}</span>
+              <div>
+                <div style="font-weight:700;text-transform:capitalize;color:#fff">${e.crop}</div>
+                <div style="font-size:.7rem;color:var(--muted)">Planted: ${e.plantedDate} · Expected: ${harvestDate.toISOString().slice(0, 10)}</div>
+              </div>
+            </div>
+            <button onclick="removeHarvestEntry(${e.id})" style="background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:.25rem .5rem;cursor:pointer;font-size:.7rem">✕</button>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:.5rem">
+            <div class="harvest-days" style="color:${col}">${remaining}</div>
+            <div class="harvest-label">${remaining === 0 ? 'HARVEST NOW' : 'days to harvest'}</div>
+          </div>
+          <div class="harvest-progress"><div class="harvest-progress-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted)">
+            <span>Day ${elapsed}/${totalDays}</span><span style="color:${col};font-weight:700">${status}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ════════════════════════════════════════
+    // FERTILIZER SCHEDULE (new /fert_schedule route)
+    // ════════════════════════════════════════
+    async function loadFertSchedule(crop) {
+      if (!crop) return;
+      try {
+        const res = await fetch(`${FLASK}/fert_schedule`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crop })
+        });
+        const d = await res.json();
+        if (d.error || !d.schedule) return;
+        // Inject schedule into fertilizer section
+        const el = document.getElementById('fertWithCrop');
+        let schedEl = document.getElementById('fertScheduleBlock');
+        if (!schedEl) {
+          schedEl = document.createElement('div');
+          schedEl.id = 'fertScheduleBlock';
+          schedEl.innerHTML = '<div class="card-title" style="margin:1rem 0 .75rem">📅 Monthly Fertilizer Schedule</div>';
+          el.appendChild(schedEl);
+        }
+        schedEl.innerHTML = '<div class="card-title" style="margin:1rem 0 .75rem">📅 Monthly Fertilizer Schedule</div>' +
+          d.schedule.map(w => `
+            <div class="sched-week">
+              <div class="sched-week-hdr">
+                <div class="sched-week-title">${w.week}</div>
+                <span class="sched-priority sched-${w.priority}">${w.priority}</span>
+              </div>
+              ${w.tasks.map(t => `<div class="sched-task">• ${t}</div>`).join('')}
+            </div>`).join('');
+      } catch (e) { /* silent fail */ }
+    }
+
+
+    // ════════════════════════════════════════
+    // LEAF DISEASE DETECTION
+    // ════════════════════════════════════════
+    let leafFileObj = null, leafThumb = null, leafBusy = false, leafWired = false;
+    let leafHistory = [];
+    try { leafHistory = JSON.parse(localStorage.getItem('leafHistory') || '[]'); } catch (e) { leafHistory = []; }
+    const LEAF_EMPTY_DROP = '<div class="leaf-ico">🍃</div><div>Click to upload, drop a photo here,<br>or take one with your phone camera</div><small>JPG / PNG</small>';
+
+    const leafEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const leafTitle = s => String(s || '').replace(/\b\w/g, c => c.toUpperCase());
+
+    function initLeaf() {
+      if (!leafWired) {
+        leafWired = true;
+        const dz = document.getElementById('leafDrop');
+        ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+        ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+        dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) leafPick(e.dataTransfer.files[0]); });
+      }
+      leafLoadSoil();
+      leafRenderHistory();
+    }
+
+    function leafShowErr(msg) {
+      const el = document.getElementById('leafErr');
+      el.textContent = msg ? '⚠ ' + msg : '';
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    function leafLoadImg(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file), img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read this image')); };
+        img.src = url;
+      });
+    }
+
+    // downscale big phone photos before upload (faster, the model only needs 224px)
+    async function leafDownscale(file, max = 800) {
+      try {
+        const img = await leafLoadImg(file);
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+        return blob || file;
+      } catch (e) { return file; }
+    }
+
+    async function leafMakeThumb(file) {
+      try {
+        const img = await leafLoadImg(file), s = 96, c = document.createElement('canvas');
+        c.width = c.height = s;
+        const m = Math.min(img.width, img.height), sx = (img.width - m) / 2, sy = (img.height - m) / 2;
+        c.getContext('2d').drawImage(img, sx, sy, m, m, 0, 0, s, s);
+        return c.toDataURL('image/jpeg', 0.6);
+      } catch (e) { return null; }
+    }
+
+    function leafPick(file) {
+      if (!file) return;
+      if (!/^image\//.test(file.type)) { leafShowErr('Please choose an image file (JPG or PNG).'); return; }
+      leafFileObj = file; leafThumb = null; leafShowErr('');
+      document.getElementById('leafPreview').innerHTML = '<img alt="Selected leaf">';
+      document.getElementById('leafPreview').firstChild.src = URL.createObjectURL(file);
+      document.getElementById('leafDrop').classList.add('has-img');
+      document.getElementById('leafBtn').disabled = false;
+      leafMakeThumb(file).then(t => { leafThumb = t; });
+    }
+
+    async function leafDiagnose() {
+      if (!leafFileObj || leafBusy) return;
+      leafBusy = true;
+      const btn = document.getElementById('leafBtn');
+      btn.disabled = true; btn.textContent = '⏳ Analysing leaf…'; leafShowErr('');
+      document.getElementById('leafResult').innerHTML = '<div class="empty-state">Analysing…</div>';
+      try {
+        const blob = await leafDownscale(leafFileObj);
+        const fd = new FormData(); fd.append('image', blob, 'leaf.jpg');
+        const res = await fetch(`${FLASK}/predict_leaf`, { method: 'POST', body: fd });
+        let d = {}; try { d = await res.json(); } catch (e) { }
+        if (!res.ok) throw new Error(d.error || ('Server error ' + res.status));
+        leafRender(d);
+        leafSaveHistory(d);
+        const p = d.predictions[0];
+        showToast(d.is_healthy ? '✅' : '🍃', d.is_healthy ? 'Leaf looks healthy' : leafTitle(p.disease) + ' (' + p.confidence + '%)', 4000);
+      } catch (e) {
+        document.getElementById('leafResult').innerHTML = '<div class="empty-state">No result</div>';
+        leafShowErr(e instanceof TypeError ? 'Cannot reach the server on port 5000. Is server.py running?' : e.message);
+      } finally {
+        leafBusy = false; btn.disabled = false; btn.textContent = '🔍 Diagnose Leaf';
+      }
+    }
+
+    function leafRender(d) {
+      const preds = d.predictions || [], p = preds[0];
+      if (!p) { document.getElementById('leafResult').innerHTML = '<div class="empty-state">No result</div>'; return; }
+      const healthy = !!d.is_healthy, conf = Number(p.confidence) || 0;
+      const col = healthy ? 'var(--green)' : 'var(--red)';
+      const confCol = conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--amber)' : 'var(--red)';
+      const title = healthy ? 'Healthy leaf' : leafTitle(p.disease);
+      const soil = (d.soil_factors || []).map(s => `<div class="plan-item"><span class="plan-num">•</span> ${leafEsc(s)}</div>`).join('');
+      const other = (typeof monitorSelectedCrop === 'string' && monitorSelectedCrop && !/tomato/i.test(monitorSelectedCrop))
+        ? `<div class="leaf-note">ℹ You are monitoring <b>${leafEsc(monitorSelectedCrop)}</b>, but this model only knows tomato leaves — results for other crops are unreliable.</div>` : '';
+      document.getElementById('leafResult').innerHTML = `
+        <div class="leaf-verdict">
+          <div class="leaf-verdict-ico" style="border-color:${col}">${healthy ? '✅' : '⚠️'}</div>
+          <div>
+            <h3 style="color:${col}">${leafEsc(title)}</h3>
+            <p>${leafEsc(leafTitle(p.crop))} leaf</p>
+          </div>
+          <div class="leaf-conf"><b style="color:${confCol}">${conf.toFixed(1)}%</b><span>confidence</span></div>
+        </div>
+        ${preds.map((x, i) => `
+          <div class="crop-row">
+            <div class="crop-rank">#${i + 1}</div>
+            <div class="crop-name">${leafEsc(x.disease === 'healthy' ? 'Healthy' : leafTitle(x.disease))}</div>
+            <div class="crop-track"><div class="crop-fill" style="width:${Math.min(100, Number(x.confidence) || 0)}%"></div></div>
+            <div class="crop-pct">${(Number(x.confidence) || 0).toFixed(1)}%</div>
+          </div>`).join('')}
+        <div class="leaf-sub">💊 Treatment</div>
+        <div class="plan-item"><span class="plan-num">→</span> ${leafEsc(d.treatment || '—')}</div>
+        ${soil ? `<div class="leaf-sub">🧪 Soil conditions that can contribute</div>${soil}` : ''}
+        ${d.low_confidence ? '<div class="leaf-note">⚠ Low confidence — retake the photo (single leaf, good light, plain background) or confirm with an expert.</div>' : ''}
+        ${other}`;
+    }
+
+    function leafSaveHistory(d) {
+      const p = d.predictions[0];
+      leafHistory.unshift({ t: Date.now(), thumb: leafThumb, healthy: !!d.is_healthy, name: d.is_healthy ? 'Healthy' : leafTitle(p.disease), conf: p.confidence, d });
+      leafHistory = leafHistory.slice(0, 12);
+      try { localStorage.setItem('leafHistory', JSON.stringify(leafHistory)); } catch (e) { /* storage full: ignore */ }
+      leafRenderHistory();
+    }
+
+    function leafRenderHistory() {
+      const el = document.getElementById('leafHist');
+      if (!leafHistory.length) { el.innerHTML = '<div class="empty-state" style="padding:1rem;width:100%">No scans yet</div>'; return; }
+      el.innerHTML = leafHistory.map((h, i) => `
+        <button class="leaf-hist-item" onclick="leafShowHistory(${i})" title="${leafEsc(new Date(h.t).toLocaleString())}">
+          ${h.thumb ? `<img src="${h.thumb}" alt="">` : '<div style="height:70px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">🍃</div>'}
+          <div style="color:${h.healthy ? 'var(--green)' : 'var(--red)'}">${leafEsc(h.name)}<br><span style="color:var(--muted);font-family:var(--mono);font-weight:400">${Number(h.conf).toFixed(0)}%</span></div>
+        </button>`).join('');
+    }
+
+    function leafShowHistory(i) {
+      const h = leafHistory[i]; if (!h) return;
+      leafRender(h.d);
+      if (h.thumb) { document.getElementById('leafPreview').innerHTML = `<img src="${h.thumb}" alt="Past scan" style="width:200px;image-rendering:auto">`; document.getElementById('leafDrop').classList.add('has-img'); }
+    }
+
+    function leafClearHistory() {
+      leafHistory = [];
+      try { localStorage.removeItem('leafHistory'); } catch (e) { }
+      leafRenderHistory();
+    }
+
+    function leafReset() {
+      leafFileObj = null; leafThumb = null; leafShowErr('');
+      document.getElementById('leafFile').value = '';
+      document.getElementById('leafPreview').innerHTML = LEAF_EMPTY_DROP;
+      document.getElementById('leafDrop').classList.remove('has-img');
+      document.getElementById('leafBtn').disabled = true;
+      document.getElementById('leafResult').innerHTML = '<div class="empty-state">Choose a leaf photo and press Diagnose</div>';
+    }
+
+    async function leafLoadSoil() {
+      const el = document.getElementById('leafSoilList'), ov = document.getElementById('leafSoilOverall');
+      try {
+        const r = await fetch(`${FLASK}/disease_soil`), d = await r.json();
+        if (d.status === 'waiting') { ov.innerHTML = ''; el.innerHTML = '<div class="empty-state">Waiting for sensor data…</div>'; return; }
+        const lv = d.overall || 'LOW', c = lv === 'HIGH' ? 'var(--red)' : lv === 'MEDIUM' ? 'var(--amber)' : 'var(--green)';
+        ov.innerHTML = `<span class="badge ${lv}" style="margin:0;color:${c}">OVERALL RISK: ${leafEsc(lv)}</span>`;
+        const risks = (d.risks || []).slice(0, 6);
+        el.innerHTML = risks.length ? risks.map(x => {
+          const lvl = x.risk >= 65 ? 'HIGH' : x.risk >= 40 ? 'MEDIUM' : 'LOW';
+          return `<div class="pest-card pest-${lvl}">
+            <span class="pest-risk">${lvl} · ${Number(x.risk)}%</span>
+            <div class="pest-name">${leafEsc(x.disease)}</div>
+            <div class="pest-action">${leafEsc(x.type)} — ${leafEsc(x.why)}</div>
+            <div class="pest-organic">💡 ${leafEsc(x.action)}</div>
+          </div>`;
+        }).join('') : '<div class="empty-state" style="color:var(--green)">✅ Soil conditions show no disease risk factors.</div>';
+      } catch (e) {
+        ov.innerHTML = '';
+        el.innerHTML = '<div class="empty-state">Cannot reach the server for soil risk.</div>';
+      }
+    }
+    renderHarvestList();
+
+  </script>
+</body>
+
+</html>

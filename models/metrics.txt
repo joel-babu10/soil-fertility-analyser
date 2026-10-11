@@ -1,0 +1,31 @@
+
+== test_lab  (1597 images)  accuracy 0.9900 ==
+                                 precision    recall  f1-score   support
+
+        Tomato___Bacterial_spot      0.977     0.995     0.986       212
+          Tomato___Early_blight      0.990     1.000     0.995       100
+           Tomato___Late_blight      0.995     0.995     0.995       190
+             Tomato___Leaf_Mold      0.990     1.000     0.995        95
+          Tomato___Mosaic_virus      0.974     1.000     0.987        37
+    Tomato___Septoria_leaf_spot      0.994     1.000     0.997       177
+          Tomato___Spider_mites      0.976     0.976     0.976       167
+           Tomato___Target_Spot      1.000     0.979     0.989       140
+Tomato___Yellow_Leaf_Curl_Virus      0.994     0.978     0.986       320
+               Tomato___healthy      1.000     1.000     1.000       159
+
+                       accuracy                          0.990      1597
+                      macro avg      0.989     0.992     0.991      1597
+                   weighted avg      0.990     0.990     0.990      1597
+
+[[211   1   0   0   0   0   0   0   0   0]
+ [  0 100   0   0   0   0   0   0   0   0]
+ [  0   0 189   0   0   0   0   0   1   0]
+ [  0   0   0  95   0   0   0   0   0   0]
+ [  0   0   0   0  37   0   0   0   0   0]
+ [  0   0   0   0   0 177   0   0   0   0]
+ [  0   0   1   1   0   1 163   0   1   0]
+ [  0   0   0   0   0   0   3 137   0   0]
+ [  5   0   0   0   1   0   1   0 313   0]
+ [  0   0   0   0   0   0   0   0   0 159]]
+
+== test_field: no images ==
