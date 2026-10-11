@@ -43,3 +43,16 @@ quick_test_results.csv
 /01_download_data.py
 /02_prepare_data.py
 /app.py
+
+# Local testing and development files
+/test
+/test_advanced.py
+/test_f.py
+/test_maintenance.py
+/train_model.py
+/download_datset.py
+/healthy.jpg
+/manifest.csv
+/old.py
+/rain_test.py
+/bacteria.jpg
